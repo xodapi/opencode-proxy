@@ -4,8 +4,16 @@
 
 ## Использование
 
+Для бесплатных моделей ключ не нужен:
+
 ```bash
-export OPENCODE_ZEN_API_KEY=your_key
+npm start
+```
+
+Для платных моделей нужен API ключ из [opencode.ai/zen](https://opencode.ai/zen):
+
+```bash
+export OPENCODE_ZEN_API_KEY=sk-zen-...
 npm start
 ```
 
@@ -23,7 +31,7 @@ npm start
 
 | Переменная | По умолчанию | Описание |
 |---|---|---|
-| `OPENCODE_ZEN_API_KEY` | — | API ключ OpenCode Zen |
+| `OPENCODE_ZEN_API_KEY` | `public` | API ключ (не обязателен для бесплатных моделей) |
 | `PORT` | `3000` | Порт сервера |
 | `MODELS` | бесплатные модели | Список моделей через запятую |
 | `ROUTING` | `round-robin` | Стратегия: `round-robin` или `random` |

@@ -68,6 +68,7 @@ describe('Config', () => {
     assert.deepEqual(config.models, DEFAULT_MODELS);
     assert.equal(config.port, 3000);
     assert.equal(config.routing, 'round-robin');
+    assert.equal(config.apiKey, 'public');
   });
 
   it('should parse MODELS from env', () => {

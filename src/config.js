@@ -13,7 +13,7 @@ function loadConfig() {
 
   return {
     port: parseInt(process.env.PORT || '3000', 10),
-    apiKey: process.env.OPENCODE_ZEN_API_KEY,
+    apiKey: process.env.OPENCODE_ZEN_API_KEY || 'public',
     models: models.length > 0 ? models : DEFAULT_MODELS,
     upstream: process.env.UPSTREAM_URL || 'https://opencode.ai/zen/v1',
     routing: process.env.ROUTING || 'round-robin',
