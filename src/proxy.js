@@ -50,6 +50,9 @@ function createProxy(customConfig) {
     parsed.model = selectedModel;
 
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), config.timeout);
+
       const upstreamUrl = `${config.upstream}/chat/completions`;
       const response = await fetch(upstreamUrl, {
         method: 'POST',
@@ -57,17 +60,24 @@ function createProxy(customConfig) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${config.apiKey}`,
         },
+        signal: controller.signal,
         body: JSON.stringify(parsed),
       });
+      clearTimeout(timer);
 
       res.writeHead(response.status, {
         'Content-Type': 'application/json',
         'X-Model-Used': selectedModel,
       });
-      res.end(JSON.stringify(await response.json()));
+
+      const text = await response.text();
+      res.end(text);
     } catch (error) {
+      const message = error.name === 'AbortError'
+        ? 'Upstream timeout'
+        : error.message;
       res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Upstream request failed', message: error.message }));
+      res.end(JSON.stringify({ error: 'Upstream request failed', message }));
     }
   }
 

@@ -17,6 +17,7 @@ function loadConfig() {
     models: models.length > 0 ? models : DEFAULT_MODELS,
     upstream: process.env.UPSTREAM_URL || 'https://opencode.ai/zen/v1',
     routing: process.env.ROUTING || 'round-robin',
+    timeout: parseInt(process.env.UPSTREAM_TIMEOUT || '30000', 10),
   };
 }
 

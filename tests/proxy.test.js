@@ -69,6 +69,7 @@ describe('Config', () => {
     assert.equal(config.port, 3000);
     assert.equal(config.routing, 'round-robin');
     assert.equal(config.apiKey, 'public');
+    assert.equal(config.timeout, 30000);
   });
 
   it('should parse MODELS from env', () => {
@@ -115,12 +116,14 @@ describe('createProxy', () => {
       models: ['m1', 'm2'],
       upstream: 'https://test.com/v1',
       routing: 'round-robin',
+      timeout: 5000,
     };
     const { proxyRequest, config, router } = createProxy(testConfig);
     assert.ok(typeof proxyRequest === 'function');
     assert.equal(config.port, 9999);
     assert.equal(config.apiKey, 'test-key');
     assert.deepEqual(config.models, ['m1', 'm2']);
+    assert.equal(config.timeout, 5000);
     assert.ok(router);
   });
 
