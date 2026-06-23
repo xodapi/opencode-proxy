@@ -121,7 +121,13 @@ JSON-метрики для автоматизации:
 http://127.0.0.1:3000/metrics
 ```
 
-Dashboard показывает запросы, токены/минуту, среднюю задержку, ошибки и разбивку по моделям. Он хранит только in-memory метрики: модель, статус, latency, usage tokens, cost и класс ошибки. Промпты, ответы, ключи и пути проектов не сохраняются.
+Текущие наблюдаемые лимиты:
+
+```text
+http://127.0.0.1:3000/limits
+```
+
+Dashboard показывает запросы, токены/минуту, среднюю задержку, ошибки, разбивку по моделям и лимиты. Когда upstream отдаёт `Retry-After` или reset headers, dashboard показывает примерное время окончания лимита. Если upstream не отдаёт reset-информацию, показывается `unknown`. Он хранит только in-memory метрики: модель, статус, latency, usage tokens, cost, класс ошибки и rate-limit reset. Промпты, ответы, ключи и пути проектов не сохраняются.
 
 ### Ручной запуск
 
@@ -135,6 +141,7 @@ npm start
 Invoke-RestMethod http://127.0.0.1:3000/health
 Invoke-RestMethod http://127.0.0.1:3000/v1/models
 Invoke-RestMethod http://127.0.0.1:3000/metrics
+Invoke-RestMethod http://127.0.0.1:3000/limits
 ```
 
 ### Конфиг
@@ -170,6 +177,7 @@ http://127.0.0.1:3010/v1
 - `GET /health` показывает статус proxy.
 - `GET /dashboard` показывает локальную dashboard-панель.
 - `GET /metrics` возвращает privacy-safe JSON-метрики.
+- `GET /limits` возвращает последние наблюдаемые 429/rate-limit reset по моделям.
 - `GET /v1/models` возвращает локальный список моделей.
 - `POST /v1/chat/completions` принимает OpenAI-format запрос и пересылает его в OpenCode Zen.
 - Если `model` не указан, равен `auto`, или отсутствует в локальном пуле, proxy выбирает следующую модель по `round-robin`.
@@ -302,7 +310,13 @@ JSON metrics for automation:
 http://127.0.0.1:3000/metrics
 ```
 
-The dashboard shows requests, tokens/minute, average latency, errors, and per-model breakdowns. It stores only in-memory metrics: model, status, latency, usage tokens, cost, and error class. It does not store prompts, responses, keys, or project paths.
+Current observed limits:
+
+```text
+http://127.0.0.1:3000/limits
+```
+
+The dashboard shows requests, tokens/minute, average latency, errors, per-model breakdowns, and limits. When the upstream returns `Retry-After` or reset headers, the dashboard shows the approximate reset time. If the upstream does not return reset data, it shows `unknown`. It stores only in-memory metrics: model, status, latency, usage tokens, cost, error class, and rate-limit reset. It does not store prompts, responses, keys, or project paths.
 
 ### Manual run
 
@@ -316,6 +330,7 @@ Health checks:
 curl http://127.0.0.1:3000/health
 curl http://127.0.0.1:3000/v1/models
 curl http://127.0.0.1:3000/metrics
+curl http://127.0.0.1:3000/limits
 ```
 
 ### Config

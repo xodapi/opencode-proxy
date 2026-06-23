@@ -232,6 +232,45 @@ describe('createProxy', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('should record and forward retry-after limits', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      error: { message: 'Rate limit exceeded. Please try again later.' },
+    }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': '120',
+      },
+    });
+
+    try {
+      const { proxyRequest, metrics } = createProxy({
+        apiKey: 'key',
+        models: ['m1'],
+        upstream: 'https://test.com/v1',
+        timeout: 5000,
+      });
+
+      const req = makeJSONRequest('/v1/chat/completions', {
+        model: 'm1',
+        messages: [{ role: 'user', content: 'do not store me' }],
+      });
+      const res = makeResponse();
+      await proxyRequest(req, res);
+
+      assert.equal(res.statusCode, 429);
+      assert.equal(res.headers['retry-after'], '120');
+      const snapshot = metrics.snapshot({ windowMs: 60_000 });
+      assert.equal(snapshot.limits.length, 1);
+      assert.equal(snapshot.limits[0].model, 'm1');
+      assert.equal(snapshot.limits[0].limited, true);
+      assert.ok(snapshot.limits[0].reset_in_seconds <= 120);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 function makeResponse(parseJSON = false) {

@@ -1,7 +1,23 @@
 import { loadConfig } from './config.js';
 import { renderDashboard } from './dashboard.js';
-import { ProxyMetrics, extractUsageFromBody } from './metrics.js';
+import { ProxyMetrics, extractLimitFromHeaders, extractUsageFromBody } from './metrics.js';
 import { Router } from './router.js';
+
+const SAFE_UPSTREAM_HEADERS = [
+  'retry-after',
+  'ratelimit-reset',
+  'rate-limit-reset',
+  'x-ratelimit-reset',
+  'x-rate-limit-reset',
+  'ratelimit-remaining',
+  'rate-limit-remaining',
+  'x-ratelimit-remaining',
+  'x-rate-limit-remaining',
+  'ratelimit-limit',
+  'rate-limit-limit',
+  'x-ratelimit-limit',
+  'x-rate-limit-limit',
+];
 
 function createProxy(customConfig) {
   const config = customConfig || loadConfig();
@@ -27,6 +43,15 @@ function createProxy(customConfig) {
       const windowMs = parseInt(url.searchParams.get('window') || '', 10);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(metrics.snapshot({ windowMs })));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/limits') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        generated_at: new Date().toISOString(),
+        limits: metrics.snapshot().limits,
+      }));
       return;
     }
 
@@ -88,6 +113,7 @@ function createProxy(customConfig) {
       const text = await response.text();
       const parsedResponse = safeParseJSON(text);
       const usage = extractUsageFromBody(parsedResponse);
+      const limit = extractLimitFromHeaders(response.headers, response.status, Date.now());
       metrics.record({
         model: selectedModel,
         status: response.status,
@@ -95,11 +121,13 @@ function createProxy(customConfig) {
         latency_ms: Date.now() - startedAt,
         error_type: response.ok ? '' : upstreamErrorType(parsedResponse, response.status),
         ...usage,
+        ...limit,
       });
 
       res.writeHead(response.status, {
         'Content-Type': 'application/json',
         'X-Model-Used': selectedModel,
+        ...safeUpstreamHeaders(response.headers),
       });
 
       res.end(text);
@@ -136,6 +164,15 @@ function upstreamErrorType(body, status) {
   if (body?.error) return String(body.error);
   if (body?.message) return String(body.message);
   return `HTTP ${status}`;
+}
+
+function safeUpstreamHeaders(headers) {
+  const output = {};
+  for (const name of SAFE_UPSTREAM_HEADERS) {
+    const value = headers.get(name);
+    if (value) output[name] = value;
+  }
+  return output;
 }
 
 export { createProxy };

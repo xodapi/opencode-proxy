@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { ProxyMetrics, aggregateEvents, extractUsageFromBody } from '../src/metrics.js';
+import {
+  ProxyMetrics,
+  aggregateEvents,
+  currentLimits,
+  extractLimitFromHeaders,
+  extractUsageFromBody,
+  parseRetryAfter,
+  parseResetHeader,
+} from '../src/metrics.js';
 
 describe('ProxyMetrics', () => {
   it('aggregates token and latency rates by model', () => {
@@ -53,5 +61,62 @@ describe('ProxyMetrics', () => {
     const snapshot = metrics.snapshot();
     assert.equal(snapshot.total_events_kept, 2);
     assert.deepEqual(snapshot.recent.map((event) => event.model), ['c', 'b']);
+  });
+
+  it('parses retry-after seconds into reset time', () => {
+    const now = Date.parse('2026-06-23T12:00:00.000Z');
+    assert.deepEqual(parseRetryAfter('120', now), {
+      retry_after_seconds: 120,
+      reset_at_ts: now + 120_000,
+      reset_at: '2026-06-23T12:02:00.000Z',
+      source: 'retry-after',
+    });
+  });
+
+  it('parses reset header seconds, epoch seconds, and dates', () => {
+    const now = Date.parse('2026-06-23T12:00:00.000Z');
+    assert.equal(parseResetHeader('60', now).reset_at, '2026-06-23T12:01:00.000Z');
+    assert.equal(parseResetHeader('1782216000', now).reset_at, '2026-06-23T12:00:00.000Z');
+    assert.equal(parseResetHeader('Tue, 23 Jun 2026 12:03:00 GMT', now).retry_after_seconds, 180);
+  });
+
+  it('extracts limit details from response headers', () => {
+    const now = Date.parse('2026-06-23T12:00:00.000Z');
+    const headers = new Headers({
+      'Retry-After': '90',
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Limit': '100',
+    });
+
+    assert.deepEqual(extractLimitFromHeaders(headers, 429, now), {
+      rate_limited: true,
+      retry_after_seconds: 90,
+      limit_reset_at: '2026-06-23T12:01:30.000Z',
+      limit_reset_at_ts: now + 90_000,
+      limit_source: 'retry-after',
+      rate_limit_remaining: 0,
+      rate_limit_limit: 100,
+    });
+  });
+
+  it('reports current active limits by model', () => {
+    const now = Date.parse('2026-06-23T12:00:00.000Z');
+    const limits = currentLimits([
+      {
+        ts: now - 1000,
+        model: 'limited-model',
+        status: 429,
+        rate_limited: true,
+        limit_reset_at: '2026-06-23T12:05:00.000Z',
+        limit_reset_at_ts: now + 300_000,
+        limit_source: 'retry-after',
+        error_type: 'Rate limit exceeded',
+      },
+    ], now);
+
+    assert.equal(limits.length, 1);
+    assert.equal(limits[0].model, 'limited-model');
+    assert.equal(limits[0].limited, true);
+    assert.equal(limits[0].reset_in_seconds, 300);
   });
 });

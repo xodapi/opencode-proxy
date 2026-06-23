@@ -19,7 +19,7 @@ function renderDashboard() {
     h1 { font-size: 24px; margin: 0 0 6px; font-weight: 700; letter-spacing: 0; }
     p { margin: 0; color: #667085; }
     .status { padding: 8px 10px; border: 1px solid #cdd5df; border-radius: 8px; color: #344054; background: #eef6f4; white-space: nowrap; }
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
     .card { border: 1px solid #d7dde5; border-radius: 8px; background: #ffffff; padding: 14px; min-width: 0; }
     .label { color: #667085; font-size: 12px; margin-bottom: 8px; }
     .value { font-size: 28px; line-height: 1.1; font-weight: 750; }
@@ -62,7 +62,16 @@ function renderDashboard() {
       <div class="card"><div class="label">Tokens / min</div><div class="value" id="tpm">0</div><div class="sub" id="tokens">0 tokens</div></div>
       <div class="card"><div class="label">Avg latency</div><div class="value" id="latency">0ms</div><div class="sub" id="maxLatency">max 0ms</div></div>
       <div class="card"><div class="label">Errors, 5 min</div><div class="value" id="errors">0</div><div class="sub" id="success">0 ok</div></div>
+      <div class="card"><div class="label">Next limit reset</div><div class="value" id="nextReset">none</div><div class="sub" id="nextResetModel">no active 429</div></div>
     </div>
+
+    <section>
+      <h2>Limits</h2>
+      <table>
+        <thead><tr><th>Model</th><th>Status</th><th>Reset</th><th class="right">Wait</th><th>Last Error</th></tr></thead>
+        <tbody id="limits"><tr><td colspan="5" class="muted">No active rate limits observed.</td></tr></tbody>
+      </table>
+    </section>
 
     <section>
       <h2>By Model</h2>
@@ -108,8 +117,26 @@ function renderDashboard() {
         setText('tokens', fmt.format(s.total_tokens) + ' tokens');
         setText('latency', fmt.format(s.latency_ms_avg) + 'ms');
         setText('maxLatency', 'max ' + fmt.format(s.latency_ms_max) + 'ms');
-        setText('errors', fmt.format(s.fail));
-        setText('success', fmt.format(s.ok) + ' ok');
+      setText('errors', fmt.format(s.fail));
+      setText('success', fmt.format(s.ok) + ' ok');
+        const activeLimits = data.limits.filter((item) => item.limited);
+        const nextLimit = activeLimits.find((item) => item.reset_at);
+        if (nextLimit) {
+          setText('nextReset', formatDuration(nextLimit.reset_in_seconds));
+          setText('nextResetModel', nextLimit.model);
+        } else if (activeLimits.length) {
+          setText('nextReset', 'unknown');
+          setText('nextResetModel', activeLimits[0].model);
+        } else {
+          setText('nextReset', 'none');
+          setText('nextResetModel', 'no active 429');
+        }
+        $('limits').innerHTML = renderRows(data.limits, '<tr><td colspan="5" class="muted">No active rate limits observed.</td></tr>', (limit) => {
+          const reset = limit.reset_at ? new Date(limit.reset_at).toLocaleString() : 'unknown';
+          const wait = limit.reset_in_seconds == null ? 'unknown' : formatDuration(limit.reset_in_seconds);
+          const state = limit.limited ? 'limited' : 'observed';
+          return '<tr><td>' + escapeHtml(limit.model) + '</td><td class="' + (limit.limited ? 'fail' : 'muted') + '">' + state + '</td><td>' + escapeHtml(reset) + '</td><td class="right">' + escapeHtml(wait) + '</td><td>' + escapeHtml(limit.error_type || '') + '</td></tr>';
+        });
         $('models').innerHTML = renderRows(s.by_model, '<tr><td colspan="7" class="muted">No requests yet.</td></tr>', (m) =>
           '<tr><td>' + escapeHtml(m.model) + '</td><td class="right">' + fmt.format(m.requests) + '</td><td class="right ok">' + fmt.format(m.ok) + '</td><td class="right fail">' + fmt.format(m.fail) + '</td><td class="right">' + fmt.format(m.total_tokens) + '</td><td class="right">' + fmt.format(m.latency_ms_avg) + '</td><td class="right">' + money.format(m.cost || 0) + '</td></tr>'
         );
@@ -122,6 +149,14 @@ function renderDashboard() {
       } catch (error) {
         setText('status', 'Dashboard error: ' + error.message);
       }
+    }
+    function formatDuration(seconds) {
+      if (seconds == null) return 'unknown';
+      const s = Math.max(0, Math.floor(seconds));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      if (h > 0) return h + 'h ' + m + 'm';
+      return m + 'm';
     }
     refresh();
     setInterval(refresh, 3000);
