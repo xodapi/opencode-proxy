@@ -40,19 +40,27 @@ big-pickle
 
 ### Самый простой старт для Windows
 
-Требуется Node.js 18+.
+Нужно установить две вещи:
 
-1. Скачайте или клонируйте репозиторий.
-2. Один раз выполните первичную настройку:
+1. Установите OpenCode Desktop: [opencode.ai/download](https://opencode.ai/download) -> Windows x64 Desktop Beta.
+2. Установите Node.js 18+ с официального сайта: [nodejs.org/en/download](https://nodejs.org/en/download). Рекомендуется текущая LTS-версия.
+3. Скачайте или клонируйте этот репозиторий.
+4. В PowerShell перейдите в папку проекта:
+
+```powershell
+cd C:\project\opencode
+```
+
+5. Один раз выполните первичную настройку:
 
 ```powershell
 .\run-opencode-proxy.cmd
 ```
 
-Скрипт сначала настроит OpenCode Desktop, потом запустит локальный proxy. Окно proxy должно оставаться открытым, пока вы работаете в OpenCode Desktop.
+Скрипт настроит уже установленный OpenCode Desktop, затем запустит локальный proxy. Окно proxy должно оставаться открытым, пока вы работаете в OpenCode Desktop.
 
-3. Перезапустите OpenCode Desktop.
-4. В выборе моделей используйте `Local Zen Proxy`.
+6. Перезапустите OpenCode Desktop.
+7. В выборе моделей используйте `Local Zen Proxy`.
 
 После первичной настройки для обычного ежедневного запуска используйте:
 
@@ -121,13 +129,27 @@ JSON-метрики для автоматизации:
 http://127.0.0.1:3000/metrics
 ```
 
+Суточная история расхода:
+
+```text
+http://127.0.0.1:3000/usage?days=7
+```
+
 Текущие наблюдаемые лимиты:
 
 ```text
 http://127.0.0.1:3000/limits
 ```
 
-Dashboard показывает запросы, токены/минуту, среднюю задержку, ошибки, разбивку по моделям и лимиты. Когда upstream отдаёт `Retry-After` или reset headers, dashboard показывает примерное время окончания лимита. Если upstream не отдаёт reset-информацию, показывается `unknown`. Он хранит только in-memory метрики: модель, статус, latency, usage tokens, cost, класс ошибки и rate-limit reset. Промпты, ответы, ключи и пути проектов не сохраняются.
+Dashboard показывает 4 основные модели, запросы, токены/минуту, среднюю задержку, ошибки, расход по дням и лимиты. Когда upstream отдаёт `Retry-After`, reset headers или remaining/limit headers, dashboard показывает эти значения. Если upstream не отдаёт точный остаток, отображается `API не передал`, а суточный расход считается по локальной истории.
+
+История по умолчанию пишется в:
+
+```text
+%USERPROFILE%\.config\opencode-proxy\usage.jsonl
+```
+
+Это обычный JSONL-файл. В него не пишутся промпты, ответы, ключи, пути проектов и session id. Сохраняются только технические поля: модель, HTTP-статус, latency, usage tokens, cost, класс ошибки и признаки rate-limit.
 
 ### Ручной запуск
 
@@ -141,6 +163,7 @@ npm start
 Invoke-RestMethod http://127.0.0.1:3000/health
 Invoke-RestMethod http://127.0.0.1:3000/v1/models
 Invoke-RestMethod http://127.0.0.1:3000/metrics
+Invoke-RestMethod http://127.0.0.1:3000/usage?days=7
 Invoke-RestMethod http://127.0.0.1:3000/limits
 ```
 
@@ -154,9 +177,13 @@ Invoke-RestMethod http://127.0.0.1:3000/limits
 | `HOST` | `127.0.0.1` |
 | `PORT` | `3000` |
 | `MODELS` | free-модели через запятую |
+| `PRIMARY_MODELS` | 4 модели для верхних карточек dashboard |
 | `ROUTING` | `round-robin` или `random` |
 | `UPSTREAM_URL` | `https://opencode.ai/zen/v1` |
 | `UPSTREAM_TIMEOUT` | `30000` мс |
+| `METRICS_MAX_EVENTS` | `2000` событий в памяти |
+| `USAGE_DB_PATH` | `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`; `off` отключает файл |
+| `USAGE_RETENTION_DAYS` | `30` дней для локальной истории |
 
 Пример с конкретным портом:
 
@@ -176,7 +203,8 @@ http://127.0.0.1:3010/v1
 - Proxy по умолчанию слушает только `127.0.0.1`, а не всю локальную сеть.
 - `GET /health` показывает статус proxy.
 - `GET /dashboard` показывает локальную dashboard-панель.
-- `GET /metrics` возвращает privacy-safe JSON-метрики.
+- `GET /metrics` возвращает privacy-safe JSON-метрики, статус 4 основных моделей и суточный расход.
+- `GET /usage?days=7` возвращает локальную историю расхода по дням и моделям.
 - `GET /limits` возвращает последние наблюдаемые 429/rate-limit reset по моделям.
 - `GET /v1/models` возвращает локальный список моделей.
 - `POST /v1/chat/completions` принимает OpenAI-format запрос и пересылает его в OpenCode Zen.
@@ -186,9 +214,9 @@ http://127.0.0.1:3010/v1
 
 ### Почему не Rust
 
-Текущая версия уже без npm-зависимостей: только Node.js 18+ и встроенные `http`/`fetch`. Для коллег это проще, чем собирать бинарники.
+Текущая версия уже без npm-зависимостей: только Node.js 18+ и встроенные `http`/`fetch`. Python не нужен. Для коллег это проще, чем собирать бинарники.
 
-Rust-версия возможна как следующий этап: один `.exe`, автозапуск и tray/служба. Но для HTTPS, JSON и OpenAI-compatible proxy всё равно понадобятся crates, просто они будут запакованы в бинарник. Практичный первый шаг — автоматическая настройка OpenCode плюс простой запуск proxy.
+Rust-версия возможна как следующий этап: один `.exe` launcher/doctor, автозапуск и tray/служба. Но для HTTPS, JSON и OpenAI-compatible proxy всё равно понадобятся crates, просто они будут запакованы в бинарник. Практичный первый шаг — автоматическая настройка OpenCode плюс простой запуск proxy.
 
 ### Риски и ограничения
 
@@ -231,19 +259,27 @@ This is not a subscription bypass or guaranteed unlimited access. Free-model ava
 
 ### Easiest Windows start
 
-Requires Node.js 18+.
+Install two prerequisites first:
 
-1. Download or clone this repository.
-2. Run the first-time setup:
+1. Install OpenCode Desktop: [opencode.ai/download](https://opencode.ai/download) -> Windows x64 Desktop Beta.
+2. Install Node.js 18+ from the official site: [nodejs.org/en/download](https://nodejs.org/en/download). The current LTS version is recommended.
+3. Download or clone this repository.
+4. In PowerShell, enter the project folder:
+
+```powershell
+cd C:\project\opencode
+```
+
+5. Run the first-time setup:
 
 ```powershell
 .\run-opencode-proxy.cmd
 ```
 
-The script configures OpenCode Desktop first, then starts the local proxy. Keep the proxy window open while using OpenCode Desktop.
+The script configures the already installed OpenCode Desktop, then starts the local proxy. Keep the proxy window open while using OpenCode Desktop.
 
-3. Restart OpenCode Desktop.
-4. Pick models from `Local Zen Proxy`.
+6. Restart OpenCode Desktop.
+7. Pick models from `Local Zen Proxy`.
 
 After the first-time setup, use this daily launcher:
 
@@ -310,13 +346,27 @@ JSON metrics for automation:
 http://127.0.0.1:3000/metrics
 ```
 
+Daily usage history:
+
+```text
+http://127.0.0.1:3000/usage?days=7
+```
+
 Current observed limits:
 
 ```text
 http://127.0.0.1:3000/limits
 ```
 
-The dashboard shows requests, tokens/minute, average latency, errors, per-model breakdowns, and limits. When the upstream returns `Retry-After` or reset headers, the dashboard shows the approximate reset time. If the upstream does not return reset data, it shows `unknown`. It stores only in-memory metrics: model, status, latency, usage tokens, cost, error class, and rate-limit reset. It does not store prompts, responses, keys, or project paths.
+The dashboard shows 4 primary models, requests, tokens/minute, average latency, errors, daily usage, and limits. When the upstream returns `Retry-After`, reset headers, or remaining/limit headers, the dashboard displays those values. If the upstream does not return an exact remaining quota, it shows `API не передал` and uses local daily history for observed usage.
+
+Usage history is written by default to:
+
+```text
+%USERPROFILE%\.config\opencode-proxy\usage.jsonl
+```
+
+This is a plain JSONL file. It does not store prompts, responses, keys, project paths, or session ids. It stores only technical fields: model, HTTP status, latency, usage tokens, cost, error class, and rate-limit markers.
 
 ### Manual run
 
@@ -330,6 +380,7 @@ Health checks:
 curl http://127.0.0.1:3000/health
 curl http://127.0.0.1:3000/v1/models
 curl http://127.0.0.1:3000/metrics
+curl "http://127.0.0.1:3000/usage?days=7"
 curl http://127.0.0.1:3000/limits
 ```
 
@@ -343,9 +394,32 @@ Environment variables:
 | `HOST` | `127.0.0.1` |
 | `PORT` | `3000` |
 | `MODELS` | comma-separated free models |
+| `PRIMARY_MODELS` | 4 models for the top dashboard cards |
 | `ROUTING` | `round-robin` or `random` |
 | `UPSTREAM_URL` | `https://opencode.ai/zen/v1` |
 | `UPSTREAM_TIMEOUT` | `30000` ms |
+| `METRICS_MAX_EVENTS` | `2000` in-memory events |
+| `USAGE_DB_PATH` | `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`; `off` disables the file |
+| `USAGE_RETENTION_DAYS` | `30` days for local history |
+
+### How it works
+
+- `GET /health` returns proxy status.
+- `GET /dashboard` shows the local dashboard.
+- `GET /metrics` returns privacy-safe JSON metrics, primary model status, and daily usage.
+- `GET /usage?days=7` returns local usage history by day and model.
+- `GET /limits` returns the last observed 429/rate-limit reset by model.
+- `GET /v1/models` returns the local model list.
+- `POST /v1/chat/completions` accepts an OpenAI-format request and forwards it to OpenCode Zen.
+- If `model` is missing, set to `auto`, or not in the local pool, the proxy picks the next model by `round-robin`.
+- If `model` is in the pool, the proxy uses that exact model.
+- The selected model is returned as the `X-Model-Used` response header.
+
+### Why not Rust
+
+The current version has no npm dependencies: Node.js 18+ is enough, using built-in `http` and `fetch`. Python is not required.
+
+A Rust version is still a good next step for a single `.exe` launcher/doctor, autostart, or tray/service mode. The proxy would still need crates for HTTPS, JSON, and OpenAI-compatible routing; they would just be bundled into the binary.
 
 ### Risks and limits
 

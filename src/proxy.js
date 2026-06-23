@@ -2,6 +2,7 @@ import { loadConfig } from './config.js';
 import { renderDashboard } from './dashboard.js';
 import { ProxyMetrics, extractLimitFromHeaders, extractUsageFromBody } from './metrics.js';
 import { Router } from './router.js';
+import { UsageStore } from './usage_store.js';
 
 const SAFE_UPSTREAM_HEADERS = [
   'retry-after',
@@ -22,7 +23,15 @@ const SAFE_UPSTREAM_HEADERS = [
 function createProxy(customConfig) {
   const config = customConfig || loadConfig();
   const router = new Router(config.models, config.routing);
-  const metrics = new ProxyMetrics({ maxEvents: config.metricsMaxEvents });
+  const usageStore = Object.hasOwn(config, 'usageDbPath')
+    ? new UsageStore({ path: config.usageDbPath, retentionDays: config.usageRetentionDays })
+    : null;
+  const metrics = new ProxyMetrics({
+    maxEvents: config.metricsMaxEvents,
+    models: config.models,
+    primaryModels: config.primaryModels,
+    usageStore,
+  });
 
   async function proxyRequest(req, res) {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -41,16 +50,31 @@ function createProxy(customConfig) {
 
     if (req.method === 'GET' && url.pathname === '/metrics') {
       const windowMs = parseInt(url.searchParams.get('window') || '', 10);
+      const usageDays = parseInt(url.searchParams.get('days') || '', 10);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(metrics.snapshot({ windowMs })));
+      res.end(JSON.stringify(metrics.snapshot({ windowMs, usageDays })));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/usage') {
+      const usageDays = parseInt(url.searchParams.get('days') || '', 10);
+      const snapshot = metrics.snapshot({ usageDays });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        generated_at: snapshot.generated_at,
+        usage: snapshot.usage,
+        model_status: snapshot.model_status,
+      }));
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/limits') {
+      const snapshot = metrics.snapshot();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        generated_at: new Date().toISOString(),
-        limits: metrics.snapshot().limits,
+        generated_at: snapshot.generated_at,
+        limits: snapshot.limits,
+        model_status: snapshot.model_status,
       }));
       return;
     }

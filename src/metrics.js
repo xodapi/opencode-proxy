@@ -1,3 +1,5 @@
+import { summarizeUsageEvents } from './usage_store.js';
+
 const DEFAULT_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_EVENTS = 2000;
 
@@ -125,6 +127,11 @@ class ProxyMetrics {
     this.maxEvents = Number.isFinite(options.maxEvents) ? options.maxEvents : DEFAULT_MAX_EVENTS;
     this.startedAt = Date.now();
     this.events = [];
+    this.models = Array.isArray(options.models) ? uniqueStrings(options.models) : [];
+    this.primaryModels = Array.isArray(options.primaryModels)
+      ? uniqueStrings(options.primaryModels).slice(0, 4)
+      : this.models.slice(0, 4);
+    this.usageStore = options.usageStore || null;
   }
 
   record(event) {
@@ -154,6 +161,9 @@ class ProxyMetrics {
     if (this.events.length > this.maxEvents) {
       this.events.splice(0, this.events.length - this.maxEvents);
     }
+    if (this.usageStore?.record) {
+      this.usageStore.record(safeEvent);
+    }
   }
 
   snapshot(options = {}) {
@@ -165,6 +175,24 @@ class ProxyMetrics {
     const windowEvents = this.events.filter((event) => event.ts >= since);
     const allSummary = aggregateEvents(this.events, Math.max(1, now - this.startedAt));
     const windowSummary = aggregateEvents(windowEvents, windowMs);
+    const usageDays = Number.isFinite(options.usageDays) && options.usageDays > 0
+      ? Math.floor(options.usageDays)
+      : 7;
+    const usage = this.usageStore?.summary
+      ? this.usageStore.summary({ days: usageDays, models: this.models, now })
+      : summarizeUsageEvents(this.events, {
+        days: usageDays,
+        models: this.models,
+        now,
+        enabled: false,
+      });
+    const modelStatus = buildModelStatus({
+      events: this.events,
+      models: this.models,
+      primaryModels: this.primaryModels,
+      usage,
+      now,
+    });
 
     return {
       version: 1,
@@ -175,7 +203,7 @@ class ProxyMetrics {
         stores_prompts: false,
         stores_responses: false,
         stores_api_keys: false,
-        note: 'Only model, status, latency, token usage, cost, and error class are kept in memory.',
+        note: 'Промпты, ответы и ключи не сохраняются; учитываются только модель, статус, задержка, токены, cost и класс ошибки.',
       },
       window_ms: windowMs,
       total_events_kept: this.events.length,
@@ -184,9 +212,124 @@ class ProxyMetrics {
         window: windowSummary,
       },
       limits: currentLimits(this.events, now),
+      model_status: modelStatus,
+      usage,
       recent: this.events.slice(-20).reverse(),
     };
   }
+}
+
+function buildModelStatus(options = {}) {
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const events = Array.isArray(options.events) ? options.events : [];
+  const configuredModels = uniqueStrings(options.models || []);
+  const eventModels = uniqueStrings(events.map((event) => event.model));
+  const usageModels = uniqueStrings([
+    ...(options.usage?.by_model_today || []).map((item) => item.model),
+    ...(options.usage?.by_model_24h || []).map((item) => item.model),
+  ]);
+  const allModels = uniqueStrings([...configuredModels, ...eventModels, ...usageModels]);
+  const primaryModels = normalizePrimaryModels(options.primaryModels || [], allModels);
+  const latestEvents = latestByModel(events);
+  const latestQuotaEvents = latestQuotaByModel(events);
+  const limits = new Map(currentLimits(events, now).map((limit) => [limit.model, limit]));
+  const today = aggregateByModel(options.usage?.by_model_today || []);
+  const last24h = aggregateByModel(options.usage?.by_model_24h || []);
+
+  const makeStatus = (model) => {
+    const lastEvent = latestEvents.get(model) || null;
+    const quotaEvent = latestQuotaEvents.get(model) || null;
+    const limit = limits.get(model) || null;
+    const todayAggregate = today.get(model) || emptyAggregate(model);
+    const day24hAggregate = last24h.get(model) || emptyAggregate(model);
+    const previousDay = previousDayForModel(options.usage?.by_day || [], model, options.usage?.today);
+    const state = modelState({ lastEvent, limit });
+
+    return {
+      model,
+      state,
+      last_status: lastEvent?.status ?? null,
+      last_ok: lastEvent?.ok ?? null,
+      last_seen_at: lastEvent ? new Date(lastEvent.ts).toISOString() : '',
+      reset_at: limit?.reset_at || '',
+      reset_in_seconds: limit?.reset_in_seconds ?? null,
+      limit_source: limit?.source || '',
+      rate_limit_remaining: quotaEvent?.rate_limit_remaining ?? null,
+      rate_limit_limit: quotaEvent?.rate_limit_limit ?? null,
+      quota_observed_at: quotaEvent ? new Date(quotaEvent.ts).toISOString() : '',
+      today: todayAggregate,
+      last_24h: day24hAggregate,
+      previous_day: previousDay,
+      error_type: lastEvent && !lastEvent.ok ? lastEvent.error_type || '' : '',
+    };
+  };
+
+  return {
+    primary: primaryModels.map(makeStatus),
+    all: allModels.map(makeStatus),
+  };
+}
+
+function modelState({ lastEvent, limit }) {
+  if (limit?.limited) return 'limited';
+  if (!lastEvent) return 'untested';
+  if (lastEvent.ok) return 'available';
+  if (lastEvent.status === 429) return 'retry';
+  return 'error';
+}
+
+function latestByModel(events) {
+  const output = new Map();
+  for (const event of events) {
+    const previous = output.get(event.model);
+    if (!previous || event.ts > previous.ts) output.set(event.model, event);
+  }
+  return output;
+}
+
+function latestQuotaByModel(events) {
+  const output = new Map();
+  for (const event of events) {
+    if (event.rate_limit_remaining === null && event.rate_limit_limit === null) continue;
+    const previous = output.get(event.model);
+    if (!previous || event.ts > previous.ts) output.set(event.model, event);
+  }
+  return output;
+}
+
+function aggregateByModel(aggregates) {
+  return new Map((aggregates || []).filter((item) => item.model).map((item) => [item.model, item]));
+}
+
+function previousDayForModel(days, model, today) {
+  for (const day of days || []) {
+    if (day.day === today) continue;
+    const aggregate = (day.by_model || []).find((item) => item.model === model);
+    if (aggregate && aggregate.requests > 0) {
+      return {
+        day: day.day,
+        requests: aggregate.requests,
+        ok: aggregate.ok,
+        fail: aggregate.fail,
+        total_tokens: aggregate.total_tokens,
+        cost: aggregate.cost,
+        rate_limited: aggregate.rate_limited,
+      };
+    }
+  }
+  return null;
+}
+
+function normalizePrimaryModels(primaryModels, allModels) {
+  const output = [];
+  for (const model of uniqueStrings(primaryModels)) {
+    if (allModels.includes(model) && !output.includes(model)) output.push(model);
+  }
+  for (const model of allModels) {
+    if (output.length >= 4) break;
+    if (!output.includes(model)) output.push(model);
+  }
+  return output.slice(0, 4);
 }
 
 function currentLimits(events, now = Date.now()) {
@@ -212,6 +355,8 @@ function currentLimits(events, now = Date.now()) {
         source: event.limit_source || '',
         last_seen_at: new Date(event.ts).toISOString(),
         error_type: event.error_type || '',
+        rate_limit_remaining: event.rate_limit_remaining ?? null,
+        rate_limit_limit: event.rate_limit_limit ?? null,
       };
     })
     .sort((a, b) => {
@@ -313,11 +458,16 @@ function round(value, digits) {
   return Math.round(value * factor) / factor;
 }
 
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
 export {
   DEFAULT_MAX_EVENTS,
   DEFAULT_WINDOW_MS,
   ProxyMetrics,
   aggregateEvents,
+  buildModelStatus,
   currentLimits,
   extractLimitFromHeaders,
   extractUsageFromBody,

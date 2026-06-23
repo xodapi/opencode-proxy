@@ -119,4 +119,48 @@ describe('ProxyMetrics', () => {
     assert.equal(limits[0].limited, true);
     assert.equal(limits[0].reset_in_seconds, 300);
   });
+
+  it('reports primary model status with quota and daily usage', () => {
+    const metrics = new ProxyMetrics({
+      models: ['m1', 'm2'],
+      primaryModels: ['m1', 'm2'],
+    });
+    const now = Date.now();
+
+    metrics.record({
+      ts: now - 2000,
+      model: 'm1',
+      status: 200,
+      ok: true,
+      total_tokens: 25,
+      latency_ms: 100,
+      rate_limit_remaining: 7,
+      rate_limit_limit: 10,
+    });
+    metrics.record({
+      ts: now - 1000,
+      model: 'm2',
+      status: 429,
+      ok: false,
+      latency_ms: 100,
+      rate_limited: true,
+      limit_reset_at: new Date(now + 60_000).toISOString(),
+      limit_reset_at_ts: now + 60_000,
+      limit_source: 'retry-after',
+      error_type: 'Rate limit exceeded',
+    });
+
+    const snapshot = metrics.snapshot({ windowMs: 60_000, usageDays: 1 });
+    const m1 = snapshot.model_status.primary.find((item) => item.model === 'm1');
+    const m2 = snapshot.model_status.primary.find((item) => item.model === 'm2');
+
+    assert.equal(snapshot.model_status.primary.length, 2);
+    assert.equal(m1.state, 'available');
+    assert.equal(m1.rate_limit_remaining, 7);
+    assert.equal(m1.rate_limit_limit, 10);
+    assert.equal(m1.today.total_tokens, 25);
+    assert.equal(m2.state, 'limited');
+    assert.ok(m2.reset_in_seconds <= 60);
+    assert.equal(m2.today.rate_limited, 1);
+  });
 });

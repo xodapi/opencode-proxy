@@ -1,5 +1,8 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Router } from '../src/router.js';
 import { loadConfig, DEFAULT_MODELS } from '../src/config.js';
 import { createProxy } from '../src/proxy.js';
@@ -66,11 +69,26 @@ describe('Config', () => {
   it('should load default free models', () => {
     const config = loadConfig();
     assert.deepEqual(config.models, DEFAULT_MODELS);
+    assert.deepEqual(config.primaryModels, [
+      'deepseek-v4-flash-free',
+      'mimo-v2.5-free',
+      'north-mini-code-free',
+      'nemotron-3-ultra-free',
+    ]);
     assert.equal(config.host, '127.0.0.1');
     assert.equal(config.port, 3000);
     assert.equal(config.routing, 'round-robin');
     assert.equal(config.apiKey, 'public');
     assert.equal(config.timeout, 30000);
+  });
+
+  it('should parse PRIMARY_MODELS from env and keep them in the active pool', () => {
+    process.env.MODELS = 'a,b,c,d,e';
+    process.env.PRIMARY_MODELS = 'd,b,missing';
+    const config = loadConfig();
+    assert.deepEqual(config.primaryModels, ['d', 'b', 'a', 'c']);
+    delete process.env.MODELS;
+    delete process.env.PRIMARY_MODELS;
   });
 
   it('should parse MODELS from env', () => {
@@ -191,6 +209,12 @@ describe('createProxy', () => {
     assert.equal(metrics.statusCode, 200);
     assert.equal(metrics.body.summary.window.requests, 0);
     assert.equal(metrics.body.privacy.stores_prompts, false);
+
+    const usage = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/usage?days=7' }, usage);
+    assert.equal(usage.statusCode, 200);
+    assert.equal(usage.body.usage.enabled, false);
+    assert.equal(Array.isArray(usage.body.model_status.primary), true);
   });
 
   it('should record privacy-safe metrics for chat completions', async () => {
@@ -269,6 +293,54 @@ describe('createProxy', () => {
       assert.ok(snapshot.limits[0].reset_in_seconds <= 120);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should persist privacy-safe daily usage when configured', async () => {
+    const originalFetch = globalThis.fetch;
+    const dir = mkdtempSync(join(tmpdir(), 'opencode-proxy-integration-'));
+    const usageDbPath = join(dir, 'usage.jsonl');
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      model: 'actual-model',
+      choices: [{ finish_reason: 'stop', message: { content: 'do not store me' } }],
+      usage: {
+        prompt_tokens: 3,
+        completion_tokens: 2,
+        total_tokens: 5,
+      },
+      cost: '0',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    try {
+      const { proxyRequest } = createProxy({
+        apiKey: 'key',
+        models: ['m1'],
+        primaryModels: ['m1'],
+        upstream: 'https://test.com/v1',
+        timeout: 5000,
+        usageDbPath,
+        usageRetentionDays: 7,
+      });
+
+      const req = makeJSONRequest('/v1/chat/completions', {
+        model: 'm1',
+        messages: [{ role: 'user', content: 'secret prompt' }],
+      });
+      const res = makeResponse();
+      await proxyRequest(req, res);
+
+      const text = readFileSync(usageDbPath, 'utf8');
+      assert.equal(text.includes('secret prompt'), false);
+      assert.equal(text.includes('do not store me'), false);
+      assert.match(text, /"model":"m1"/);
+
+      const usage = makeResponse(true);
+      await proxyRequest({ method: 'GET', url: '/usage?days=7' }, usage);
+      assert.equal(usage.body.usage.enabled, true);
+      assert.equal(usage.body.usage.by_model_today.find((item) => item.model === 'm1').total_tokens, 5);
+    } finally {
+      globalThis.fetch = originalFetch;
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

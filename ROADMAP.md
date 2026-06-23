@@ -9,7 +9,7 @@ This project should stay small, local-first, and safe by default. The goal is to
 - Daily proxy + Desktop launcher through `open-opencode.cmd`.
 - Safe default network binding to `127.0.0.1`.
 - Diagnostic checks through `doctor.cmd`.
-- Local privacy-safe analytics through `/dashboard` and `/metrics`.
+- Local privacy-safe analytics through `/dashboard`, `/metrics`, `/usage`, and a JSONL usage log.
 - OpenCode Desktop configuration through a dedicated `zenproxy` provider.
 
 ## Useful patterns from nearby projects
@@ -38,10 +38,22 @@ From `abtop`:
 ## Phase 2: reduce manual runtime work
 
 - Add a background launcher option for Windows.
-- Add richer dashboard filters and export options for `http://127.0.0.1:3000/dashboard`.
+- Add dashboard filters and export options for `http://127.0.0.1:3000/dashboard`.
+- Add a local reset/cleanup command for `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`.
 - Add graceful port fallback, for example `3000 -> 3001 -> 3002`, and update OpenCode config automatically.
 - Add a backup/restore command for OpenCode config.
 - Add optional Windows startup registration, disabled by default.
+
+## Phase 2.5: optional Rust helper
+
+Do not rewrite the working proxy first. Start with a small Rust helper that keeps the same files and HTTP endpoints:
+
+- single `opencode-proxy-doctor.exe` for Node/OpenCode/proxy checks;
+- optional launcher that starts Node proxy and OpenCode Desktop;
+- JSON output compatible with `doctor.cmd` and `/usage`;
+- reader for the existing `usage.jsonl`, so no data migration is needed.
+
+This gives colleagues a predictable `.exe` surface without forcing a full proxy rewrite while the OpenCode integration is still moving.
 
 ## Phase 3: improve safety
 
