@@ -2,6 +2,8 @@
 
 OpenAI-compatible local proxy for OpenCode Zen free models. It runs on your machine, listens on `127.0.0.1` by default, exposes `http://127.0.0.1:3000/v1`, and lets OpenCode Desktop use a small free-model pool through a dedicated `Local Zen Proxy` provider.
 
+This is an independent community project. It is not built by, endorsed by, or affiliated with the OpenCode team.
+
 **English**: see [English setup](#english-setup).  
 **Русский**: см. [Русская инструкция](#russian-setup).
 
