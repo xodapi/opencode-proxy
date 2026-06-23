@@ -1,4 +1,5 @@
 param(
+  [string]$HostName = "127.0.0.1",
   [int]$Port = 3000
 )
 
@@ -11,18 +12,19 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 }
 
 Set-Location $repoRoot
+$env:HOST = $HostName
 $env:PORT = [string]$Port
 
 try {
-  $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 2
+  $health = Invoke-RestMethod -Uri "http://$HostName`:$Port/health" -TimeoutSec 2
   if ($health.status -eq "ok") {
-    Write-Host "OpenCode proxy is already running on http://127.0.0.1:$Port"
+    Write-Host "OpenCode proxy is already running on http://$HostName`:$Port"
     exit 0
   }
 } catch {
   # No proxy is running yet.
 }
 
-Write-Host "Starting OpenCode proxy on http://127.0.0.1:$Port"
+Write-Host "Starting OpenCode proxy on http://$HostName`:$Port"
 Write-Host "Keep this window open while using OpenCode Desktop."
 npm start

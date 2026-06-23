@@ -66,6 +66,7 @@ describe('Config', () => {
   it('should load default free models', () => {
     const config = loadConfig();
     assert.deepEqual(config.models, DEFAULT_MODELS);
+    assert.equal(config.host, '127.0.0.1');
     assert.equal(config.port, 3000);
     assert.equal(config.routing, 'round-robin');
     assert.equal(config.apiKey, 'public');
@@ -112,6 +113,7 @@ describe('createProxy', () => {
   it('should return proxyRequest, config, and router', () => {
     const testConfig = {
       port: 9999,
+      host: '127.0.0.1',
       apiKey: 'test-key',
       models: ['m1', 'm2'],
       upstream: 'https://test.com/v1',

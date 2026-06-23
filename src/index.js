@@ -6,8 +6,8 @@ const config = loadConfig();
 const { proxyRequest } = createProxy(config);
 const server = http.createServer(proxyRequest);
 
-server.listen(config.port, () => {
-  console.log(`OpenCode Proxy running on http://localhost:${config.port}`);
+server.listen(config.port, config.host, () => {
+  console.log(`OpenCode Proxy running on http://${config.host}:${config.port}`);
   console.log(`Models: ${config.models.join(', ')}`);
   console.log(`Routing: ${config.routing}`);
   console.log(`Upstream: ${config.upstream}`);

@@ -1,6 +1,6 @@
 # opencode-proxy
 
-OpenAI-compatible local proxy for OpenCode Zen free models. It runs on your machine, exposes `http://127.0.0.1:3000/v1`, and lets OpenCode Desktop use a small free-model pool through a dedicated `Local Zen Proxy` provider.
+OpenAI-compatible local proxy for OpenCode Zen free models. It runs on your machine, listens on `127.0.0.1` by default, exposes `http://127.0.0.1:3000/v1`, and lets OpenCode Desktop use a small free-model pool through a dedicated `Local Zen Proxy` provider.
 
 **English**: see [English setup](#english-setup).  
 **Русский**: см. [Русская инструкция](#russian-setup).
@@ -36,12 +36,25 @@ big-pickle
 
 Это не обход подписки и не вечный безлимит. Доступность free-моделей зависит от OpenCode Zen.
 
-### Быстрая настройка для Windows
+### Самый простой старт для Windows
 
 Требуется Node.js 18+.
 
 1. Скачайте или клонируйте репозиторий.
 2. Запустите:
+
+```powershell
+.\run-opencode-proxy.cmd
+```
+
+Скрипт сначала настроит OpenCode Desktop, потом запустит локальный proxy. Окно proxy должно оставаться открытым, пока вы работаете в OpenCode Desktop.
+
+3. Перезапустите OpenCode Desktop.
+4. В выборе моделей используйте `Local Zen Proxy`.
+
+### Раздельная настройка
+
+Если нужно выполнить шаги отдельно:
 
 ```powershell
 .\install-opencode.cmd
@@ -55,16 +68,21 @@ big-pickle
 - установит пакет `@ai-sdk/openai-compatible`;
 - выставит модели `zenproxy/deepseek-v4-flash-free` и `zenproxy/mimo-v2.5-free`.
 
-3. Запустите proxy:
+Затем запустите proxy:
 
 ```powershell
 .\start-proxy.cmd
 ```
 
-Окно proxy должно оставаться открытым, пока вы работаете в OpenCode Desktop.
+### Диагностика
 
-4. Перезапустите OpenCode Desktop.
-5. В выборе моделей используйте `Local Zen Proxy`.
+Если что-то не работает:
+
+```powershell
+.\doctor.cmd
+```
+
+Он проверит Node.js, пакет `@ai-sdk/openai-compatible`, конфиг OpenCode, default-модель, `/health` и `/v1/models`.
 
 ### Ручной запуск
 
@@ -86,6 +104,7 @@ Invoke-RestMethod http://127.0.0.1:3000/v1/models
 | Переменная | По умолчанию |
 |---|---|
 | `OPENCODE_ZEN_API_KEY` | `public` |
+| `HOST` | `127.0.0.1` |
 | `PORT` | `3000` |
 | `MODELS` | free-модели через запятую |
 | `ROUTING` | `round-robin` или `random` |
@@ -107,6 +126,7 @@ http://127.0.0.1:3010/v1
 
 ### Как это работает
 
+- Proxy по умолчанию слушает только `127.0.0.1`, а не всю локальную сеть.
 - `GET /health` показывает статус proxy.
 - `GET /v1/models` возвращает локальный список моделей.
 - `POST /v1/chat/completions` принимает OpenAI-format запрос и пересылает его в OpenCode Zen.
@@ -119,6 +139,14 @@ http://127.0.0.1:3010/v1
 Текущая версия уже без npm-зависимостей: только Node.js 18+ и встроенные `http`/`fetch`. Для коллег это проще, чем собирать бинарники.
 
 Rust-версия возможна как следующий этап: один `.exe`, автозапуск и tray/служба. Но для HTTPS, JSON и OpenAI-compatible proxy всё равно понадобятся crates, просто они будут запакованы в бинарник. Практичный первый шаг — автоматическая настройка OpenCode плюс простой запуск proxy.
+
+### Риски и ограничения
+
+- Это локальный proxy без собственной авторизации, поэтому по умолчанию он привязан к `127.0.0.1`.
+- Не запускайте его на `0.0.0.0`, если не понимаете сетевые последствия.
+- Не вставляйте личный Zen API key в README, скриншоты или общий чат.
+- Free-модели могут измениться или временно перестать работать на стороне OpenCode Zen.
+- Если `npm install` падает с `ENOTFOUND`, проблема обычно в DNS/сети, а не в этом проекте.
 
 ---
 
@@ -151,7 +179,7 @@ big-pickle
 
 This is not a subscription bypass or guaranteed unlimited access. Free-model availability is controlled by OpenCode Zen.
 
-### Quick Windows setup
+### Easiest Windows start
 
 Requires Node.js 18+.
 
@@ -159,10 +187,23 @@ Requires Node.js 18+.
 2. Run:
 
 ```powershell
+.\run-opencode-proxy.cmd
+```
+
+The script configures OpenCode Desktop first, then starts the local proxy. Keep the proxy window open while using OpenCode Desktop.
+
+3. Restart OpenCode Desktop.
+4. Pick models from `Local Zen Proxy`.
+
+### Separate setup
+
+If you prefer separate steps:
+
+```powershell
 .\install-opencode.cmd
 ```
 
-The script:
+This script:
 
 - creates or updates `%USERPROFILE%\.config\opencode\opencode.jsonc`;
 - creates a timestamped backup next to the config file;
@@ -170,16 +211,19 @@ The script:
 - installs `@ai-sdk/openai-compatible`;
 - sets the default models to `zenproxy/deepseek-v4-flash-free` and `zenproxy/mimo-v2.5-free`.
 
-3. Start the proxy:
+Then start the proxy:
 
 ```powershell
 .\start-proxy.cmd
 ```
 
-Keep this window open while using OpenCode Desktop.
+### Diagnostics
 
-4. Restart OpenCode Desktop.
-5. Pick models from `Local Zen Proxy`.
+```powershell
+.\doctor.cmd
+```
+
+It checks Node.js, `@ai-sdk/openai-compatible`, OpenCode config, default model, `/health`, and `/v1/models`.
 
 ### Manual run
 
@@ -201,11 +245,20 @@ Environment variables:
 | Variable | Default |
 |---|---|
 | `OPENCODE_ZEN_API_KEY` | `public` |
+| `HOST` | `127.0.0.1` |
 | `PORT` | `3000` |
 | `MODELS` | comma-separated free models |
 | `ROUTING` | `round-robin` or `random` |
 | `UPSTREAM_URL` | `https://opencode.ai/zen/v1` |
 | `UPSTREAM_TIMEOUT` | `30000` ms |
+
+### Risks and limits
+
+- The proxy has no built-in auth, so it binds to `127.0.0.1` by default.
+- Do not run it on `0.0.0.0` unless you understand the network exposure.
+- Do not paste a personal Zen API key into README files, screenshots, or shared chats.
+- Free-model availability is controlled by OpenCode Zen and may change.
+- If `npm install` fails with `ENOTFOUND`, it is usually a DNS/network problem.
 
 ### Tests
 

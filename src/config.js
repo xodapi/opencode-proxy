@@ -12,6 +12,7 @@ function loadConfig() {
     : DEFAULT_MODELS;
 
   return {
+    host: process.env.HOST || '127.0.0.1',
     port: parseInt(process.env.PORT || '3000', 10),
     apiKey: process.env.OPENCODE_ZEN_API_KEY || 'public',
     models: models.length > 0 ? models : DEFAULT_MODELS,
