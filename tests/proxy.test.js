@@ -217,6 +217,41 @@ describe('createProxy', () => {
     assert.equal(Array.isArray(usage.body.model_status.primary), true);
   });
 
+  it('should export usage as privacy-safe JSON and CSV', async () => {
+    const { proxyRequest, metrics } = createProxy({
+      apiKey: 'key',
+      models: ['m1'],
+      primaryModels: ['m1'],
+      upstream: 'https://test.com/v1',
+      timeout: 5000,
+    });
+
+    metrics.record({
+      model: 'm1',
+      status: 200,
+      ok: true,
+      latency_ms: 42,
+      total_tokens: 12,
+      prompt_tokens: 8,
+      completion_tokens: 4,
+      messages: [{ role: 'user', content: 'secret prompt' }],
+    });
+
+    const json = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/export/usage.json?days=1' }, json);
+    assert.equal(json.statusCode, 200);
+    assert.equal(json.body.privacy.stores_prompts, false);
+    assert.equal(JSON.stringify(json.body).includes('secret prompt'), false);
+    assert.equal(json.body.usage.by_model_today.find((item) => item.model === 'm1').total_tokens, 12);
+
+    const csv = makeResponse();
+    await proxyRequest({ method: 'GET', url: '/export/usage.csv?days=1' }, csv);
+    assert.equal(csv.statusCode, 200);
+    assert.match(csv.body, /day,model,requests,ok,fail,total_tokens/);
+    assert.match(csv.body, /m1/);
+    assert.equal(csv.body.includes('secret prompt'), false);
+  });
+
   it('should record privacy-safe metrics for chat completions', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => new Response(JSON.stringify({

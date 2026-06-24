@@ -68,6 +68,32 @@ function createProxy(customConfig) {
       return;
     }
 
+    if (req.method === 'GET' && isUsageExportPath(url)) {
+      const usageDays = parseInt(url.searchParams.get('days') || '', 10);
+      const format = usageExportFormat(url);
+      const snapshot = metrics.snapshot({ usageDays });
+      if (format === 'csv') {
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="opencode-usage.csv"',
+        });
+        res.end(usageExportCsv(snapshot.usage));
+      } else {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Content-Disposition': 'attachment; filename="opencode-usage.json"',
+        });
+        res.end(JSON.stringify({
+          generated_at: snapshot.generated_at,
+          privacy: snapshot.privacy,
+          summary: snapshot.summary,
+          usage: snapshot.usage,
+          model_status: snapshot.model_status,
+        }, null, 2));
+      }
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/limits') {
       const snapshot = metrics.snapshot();
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -202,4 +228,69 @@ function safeUpstreamHeaders(headers) {
   return output;
 }
 
-export { createProxy };
+function isUsageExportPath(url) {
+  return url.pathname === '/export/usage'
+    || url.pathname === '/export/usage.json'
+    || url.pathname === '/export/usage.csv';
+}
+
+function usageExportFormat(url) {
+  if (url.pathname.endsWith('.csv')) return 'csv';
+  if (url.pathname.endsWith('.json')) return 'json';
+  return url.searchParams.get('format') === 'csv' ? 'csv' : 'json';
+}
+
+function usageExportCsv(usage) {
+  const rows = [[
+    'day',
+    'model',
+    'requests',
+    'ok',
+    'fail',
+    'total_tokens',
+    'prompt_tokens',
+    'completion_tokens',
+    'usage_reported',
+    'usage_estimated',
+    'rate_limited',
+    'latency_ms_avg',
+    'latency_ms_max',
+    'cost',
+  ]];
+
+  for (const day of usage?.by_day || []) {
+    rows.push(usageCsvRow(day.day, '__all__', day));
+    for (const model of day.by_model || []) {
+      rows.push(usageCsvRow(day.day, model.model, model));
+    }
+  }
+
+  return `${rows.map((row) => row.map(csvCell).join(',')).join('\n')}\n`;
+}
+
+function usageCsvRow(day, model, item) {
+  return [
+    day,
+    model,
+    item.requests || 0,
+    item.ok || 0,
+    item.fail || 0,
+    item.total_tokens || 0,
+    item.prompt_tokens || 0,
+    item.completion_tokens || 0,
+    item.usage_reported || 0,
+    item.usage_estimated || 0,
+    item.rate_limited || 0,
+    item.latency_ms_avg || 0,
+    item.latency_ms_max || 0,
+    item.cost || 0,
+  ];
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  if (!/[",\r\n]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export { createProxy, usageExportCsv };

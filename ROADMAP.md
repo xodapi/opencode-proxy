@@ -9,8 +9,11 @@ This project should stay small, local-first, and safe by default. The goal is to
 - Daily proxy + Desktop launcher through `open-opencode.cmd`.
 - Safe default network binding to `127.0.0.1`.
 - Diagnostic checks through `doctor.cmd`.
+- Factory Droid checks through `doctor-factory.cmd`.
 - Local privacy-safe analytics through `/dashboard`, `/metrics`, `/usage`, and a JSONL usage log.
+- JSON/CSV usage export through `/export/usage.json` and `/export/usage.csv`.
 - OpenCode Desktop configuration through a dedicated `zenproxy` provider.
+- Source-only release archive builder through `build-release.cmd`.
 
 ## Useful patterns from nearby projects
 
@@ -29,8 +32,8 @@ From `abtop`:
 
 ## Phase 1: make sharing painless
 
-- Publish a GitHub release zip with only the files users need.
-- Add a short Russian quickstart at the top of the release notes.
+- Keep the GitHub release zip source-only, with only the files users need.
+- Keep `QUICKSTART_RU.md` short enough for non-developer colleagues.
 - Add screenshots showing the expected `Local Zen Proxy` model picker.
 - Add a troubleshooting table for npm DNS failures, missing Node.js, busy port `3000`, and OpenCode config parse errors.
 - Keep improving `model-health`, which tests each configured free model and prints which ones are usable today.
@@ -38,8 +41,8 @@ From `abtop`:
 ## Phase 2: reduce manual runtime work
 
 - Add a background launcher option for Windows.
-- Add dashboard filters and export options for `http://127.0.0.1:3000/dashboard`.
-- Add a local reset/cleanup command for `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`.
+- Add dashboard filters and comparison views for `http://127.0.0.1:3000/dashboard`.
+- Add optional automatic cleanup scheduling for `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`.
 - Add graceful port fallback, for example `3000 -> 3001 -> 3002`, and update OpenCode config automatically.
 - Add a backup/restore command for OpenCode config.
 - Add optional Windows startup registration, disabled by default.

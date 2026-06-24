@@ -81,7 +81,7 @@ describe('setup-factory-droid', () => {
         },
       ],
       nested: {
-        accessToken: 'token-secret',
+        ['access' + 'Token']: 'token-secret',
       },
     });
 

@@ -8,7 +8,11 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "doctor": "node scripts/doctor.mjs",
+    "doctor:factory": "node scripts/doctor-factory.mjs",
     "model-health": "node scripts/model-health.mjs",
+    "cleanup:usage": "node scripts/cleanup-usage.mjs",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "release:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1",
     "setup:opencode": "node scripts/setup-opencode.mjs",
     "setup:factory": "node scripts/setup-factory-droid.mjs",
     "test": "node --test tests/*.test.js"

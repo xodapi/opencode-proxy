@@ -163,6 +163,7 @@ function renderDashboard() {
 
     .btn:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
     .btn svg { width: 14px; height: 14px; }
+    .btn-icon-only { padding: 8px; }
 
     .btn-primary {
       background: var(--accent);
@@ -191,13 +192,44 @@ function renderDashboard() {
       box-shadow: var(--glow);
     }
 
+    .stat-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .stat-icon,
+    .chart-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-soft);
+      color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .stat-icon svg,
+    .chart-icon svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .stat-icon.tokens { background: rgba(139,92,246,.12); color: #8b5cf6; }
+    .stat-icon.latency { background: var(--warn-bg); color: var(--warn); }
+    .stat-icon.errors { background: var(--bad-bg); color: var(--bad); }
+    .stat-icon.cost { background: var(--good-bg); color: var(--good); }
+
     .stat-label {
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--text-muted);
-      margin-bottom: 8px;
     }
 
     .stat-value {
@@ -243,14 +275,24 @@ function renderDashboard() {
     }
 
     .chart-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: 14px;
       font-weight: 600;
       color: var(--text-primary);
     }
 
+    .chart-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
     .chart-subtitle {
       font-size: 11px;
       color: var(--text-muted);
+      margin-top: 2px;
     }
 
     .chart-tabs {
@@ -545,7 +587,15 @@ function renderDashboard() {
       </div>
       <div class="header-actions">
         <div class="status-pill" id="status"><span class="status-dot"></span> Загрузка...</div>
-        <button class="btn" id="themeToggle" type="button">
+        <a class="btn" href="/export/usage.csv?days=7" download title="Скачать статистику CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          CSV
+        </a>
+        <a class="btn" href="/export/usage.json?days=7" download title="Скачать статистику JSON">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 13h4"/><path d="M10 17h4"/></svg>
+          JSON
+        </a>
+        <button class="btn btn-icon-only" id="themeToggle" type="button" title="Сменить тему">
           <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
         </button>
         <button class="btn btn-primary" id="refresh" type="button">
@@ -557,27 +607,42 @@ function renderDashboard() {
 
     <div class="stat-row">
       <div class="stat-card">
-        <div class="stat-label">Запросы (5 мин)</div>
+        <div class="stat-card-top">
+          <div class="stat-label">Запросы (5 мин)</div>
+          <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-3 3 2 5-6"/></svg></div>
+        </div>
         <div class="stat-value" id="requests">0</div>
         <div class="stat-sub" id="rpm">0 rpm</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Токены / мин</div>
+        <div class="stat-card-top">
+          <div class="stat-label">Токены / мин</div>
+          <div class="stat-icon tokens"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        </div>
         <div class="stat-value" id="tpm">0</div>
         <div class="stat-sub" id="tokens">0 токенов</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Задержка</div>
+        <div class="stat-card-top">
+          <div class="stat-label">Задержка</div>
+          <div class="stat-icon latency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
+        </div>
         <div class="stat-value" id="latency">0мс</div>
         <div class="stat-sub" id="maxLatency">max 0мс</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Ошибки (5 мин)</div>
+        <div class="stat-card-top">
+          <div class="stat-label">Ошибки (5 мин)</div>
+          <div class="stat-icon errors"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+        </div>
         <div class="stat-value" id="errors">0</div>
         <div class="stat-sub" id="success">0 ok</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Стоимость</div>
+        <div class="stat-card-top">
+          <div class="stat-label">Стоимость</div>
+          <div class="stat-icon cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        </div>
         <div class="stat-value" id="cost">0</div>
         <div class="stat-sub" id="costToday">$ за сегодня</div>
       </div>
@@ -587,8 +652,13 @@ function renderDashboard() {
       <div class="chart-card wide">
         <div class="chart-header">
           <div>
-            <div class="chart-title">Активность</div>
-            <div class="chart-subtitle">Запросы и токены по минутам</div>
+            <div class="chart-title-row">
+              <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-7"/></svg></div>
+              <div>
+                <div class="chart-title">Активность</div>
+                <div class="chart-subtitle">Нагрузка по минутам: запросы, OK/ошибки или токены</div>
+              </div>
+            </div>
           </div>
           <div class="chart-tabs" id="activityTabs">
             <button class="chart-tab active" data-metric="requests">Запросы</button>
@@ -600,8 +670,13 @@ function renderDashboard() {
       <div class="chart-card">
         <div class="chart-header">
           <div>
-            <div class="chart-title">Задержка</div>
-            <div class="chart-subtitle">Средняя и максимальная мс</div>
+            <div class="chart-title-row">
+              <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
+              <div>
+                <div class="chart-title">Задержка</div>
+                <div class="chart-subtitle">Средняя линия и пиковые ответы upstream</div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="chart-wrap"><canvas id="latencyChart"></canvas></div>
@@ -609,8 +684,13 @@ function renderDashboard() {
       <div class="chart-card">
         <div class="chart-header">
           <div>
-            <div class="chart-title">Стоимость</div>
-            <div class="chart-subtitle">Накопленный cost по минутам</div>
+            <div class="chart-title-row">
+              <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16"/><path d="M7 16V8"/><path d="M12 16V4"/><path d="M17 16v-6"/></svg></div>
+              <div>
+                <div class="chart-title">Стоимость</div>
+                <div class="chart-subtitle">Cost из upstream: по минутам и накопительно</div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="chart-wrap"><canvas id="costChart"></canvas></div>
@@ -619,21 +699,21 @@ function renderDashboard() {
 
     <div class="donuts-grid">
       <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px">Распределение по моделям</div>
+        <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Распределение по моделям</div>
         <div class="donut-wrap"><canvas id="modelDonut"></canvas>
           <div class="donut-center"><div class="donut-center-value" id="modelDonutTotal">0</div><div class="donut-center-label">запр.</div></div>
         </div>
         <div class="donut-legend" id="modelLegend"></div>
       </div>
       <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px">Prompt vs Completion</div>
+        <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></span>Prompt vs Completion</div>
         <div class="donut-wrap"><canvas id="tokenDonut"></canvas>
           <div class="donut-center"><div class="donut-center-value" id="tokenDonutTotal">0</div><div class="donut-center-label">токенов</div></div>
         </div>
         <div class="donut-legend" id="tokenLegend"></div>
       </div>
       <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px">Успешность</div>
+        <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span>Успешность</div>
         <div class="donut-wrap"><canvas id="successDonut"></canvas>
           <div class="donut-center"><div class="donut-center-value" id="successDonutTotal">0%</div><div class="donut-center-label">ok rate</div></div>
         </div>

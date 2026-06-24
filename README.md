@@ -1,11 +1,15 @@
 # opencode-proxy
 
-OpenAI-compatible local proxy for OpenCode Zen free models. It runs on your machine, listens on `127.0.0.1` by default, exposes `http://127.0.0.1:3000/v1`, and lets OpenCode Desktop use a small free-model pool through a dedicated `Local Zen Proxy` provider.
+OpenAI-compatible local proxy for OpenCode Zen free models. It runs on your machine, listens on `127.0.0.1` by default, exposes `http://127.0.0.1:3000/v1`, and lets OpenCode Desktop plus Factory Droid use a small free-model pool through local custom-provider settings.
 
 This is an independent community project. It is not built by, endorsed by, or affiliated with the OpenCode team.
 
-**English**: see [English setup](#english-setup).  
-**Русский**: см. [Русская инструкция](#russian-setup).
+- **Быстрый старт RU**: [QUICKSTART_RU.md](QUICKSTART_RU.md).
+- **Release checklist**: [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+- **OpenCode Desktop**: `.\run-opencode-proxy.cmd`, then `Local Zen Proxy`.
+- **Factory Droid / Mission / Validation**: `.\setup-factory-droid.cmd`, then `.\doctor-factory.cmd`.
+- **English**: see [English setup](#english-setup).
+- **Русский**: см. [Русская инструкция](#russian-setup).
 
 ---
 
@@ -69,6 +73,19 @@ cd C:\project\opencode
 ```
 
 Этот launcher проверит proxy, при необходимости запустит его в отдельном окне, дождется `/health`, а потом откроет OpenCode Desktop. Это самый простой способ избежать `ECONNREFUSED 127.0.0.1:3000`.
+
+Dashboard доступен, пока proxy запущен:
+
+```text
+http://127.0.0.1:3000/dashboard
+```
+
+Выгрузка статистики без промптов и ответов:
+
+```text
+http://127.0.0.1:3000/export/usage.json?days=7
+http://127.0.0.1:3000/export/usage.csv?days=7
+```
 
 ### Factory Droid / Mission / Validation
 
@@ -135,6 +152,12 @@ nemotron-3-ultra-free [OpenCode Proxy]
 Invoke-RestMethod http://127.0.0.1:3000/health
 ```
 
+Для проверки Factory Droid:
+
+```powershell
+.\doctor-factory.cmd
+```
+
 ### Раздельная настройка
 
 Если нужно выполнить шаги отдельно:
@@ -173,6 +196,18 @@ Invoke-RestMethod http://127.0.0.1:3000/health
 
 Он проверит Node.js, пакет `@ai-sdk/openai-compatible`, конфиг OpenCode, default-модель, `/health` и `/v1/models`.
 
+Проверить Factory Droid, Mission/Validation и старые mission settings:
+
+```powershell
+.\doctor-factory.cmd
+```
+
+Проверка перед публикацией на GitHub:
+
+```powershell
+npm run secret-scan
+```
+
 Проверить, какие free-модели реально отвечают сейчас:
 
 ```powershell
@@ -200,6 +235,13 @@ http://127.0.0.1:3000/metrics
 http://127.0.0.1:3000/usage?days=7
 ```
 
+Экспорт истории:
+
+```text
+http://127.0.0.1:3000/export/usage.json?days=7
+http://127.0.0.1:3000/export/usage.csv?days=7
+```
+
 Текущие наблюдаемые лимиты:
 
 ```text
@@ -215,6 +257,12 @@ Dashboard показывает 4 основные модели, запросы, 
 ```
 
 Это обычный JSONL-файл. В него не пишутся промпты, ответы, ключи, пути проектов и session id. Сохраняются только технические поля: модель, HTTP-статус, latency, usage tokens, cost, класс ошибки и признаки rate-limit.
+
+Очистить старую историю вручную:
+
+```powershell
+.\cleanup-usage.cmd --days 30
+```
 
 ### Ручной запуск
 
@@ -331,6 +379,8 @@ big-pickle
 
 This is not a subscription bypass or guaranteed unlimited access. Free-model availability is controlled by OpenCode Zen.
 
+Factory Droid/Desktop can also use the same local proxy through custom OpenAI-compatible models. See [Factory Droid / Mission / Validation](#factory-droid--mission--validation).
+
 ### Easiest Windows start
 
 Install two prerequisites first:
@@ -362,6 +412,19 @@ After the first-time setup, use this daily launcher:
 ```
 
 It checks the proxy, starts it in a separate window if needed, waits for `/health`, and then opens OpenCode Desktop. This is the easiest way to avoid `ECONNREFUSED 127.0.0.1:3000`.
+
+Dashboard:
+
+```text
+http://127.0.0.1:3000/dashboard
+```
+
+Privacy-safe export:
+
+```text
+http://127.0.0.1:3000/export/usage.json?days=7
+http://127.0.0.1:3000/export/usage.csv?days=7
+```
 
 ### Factory Droid / Mission / Validation
 
@@ -428,6 +491,12 @@ Proxy check:
 Invoke-RestMethod http://127.0.0.1:3000/health
 ```
 
+Factory Droid check:
+
+```powershell
+.\doctor-factory.cmd
+```
+
 ### Separate setup
 
 If you prefer separate steps:
@@ -464,6 +533,18 @@ Or start the proxy and OpenCode Desktop together:
 
 It checks Node.js, `@ai-sdk/openai-compatible`, OpenCode config, default model, `/health`, and `/v1/models`.
 
+Check Factory Droid, Mission/Validation, and stale mission settings:
+
+```powershell
+.\doctor-factory.cmd
+```
+
+Secret scan before publishing:
+
+```powershell
+npm run secret-scan
+```
+
 Check which free models are actually responding now:
 
 ```powershell
@@ -491,6 +572,13 @@ Daily usage history:
 http://127.0.0.1:3000/usage?days=7
 ```
 
+Usage export:
+
+```text
+http://127.0.0.1:3000/export/usage.json?days=7
+http://127.0.0.1:3000/export/usage.csv?days=7
+```
+
 Current observed limits:
 
 ```text
@@ -506,6 +594,12 @@ Usage history is written by default to:
 ```
 
 This is a plain JSONL file. It does not store prompts, responses, keys, project paths, or session ids. It stores only technical fields: model, HTTP status, latency, usage tokens, cost, error class, and rate-limit markers.
+
+Clean old usage rows manually:
+
+```powershell
+.\cleanup-usage.cmd --days 30
+```
 
 ### Manual run
 
@@ -581,6 +675,12 @@ A Rust version is still a good next step for a single `.exe` launcher/doctor, au
 
 ```bash
 npm test
+```
+
+Build a source-only release zip:
+
+```powershell
+.\build-release.cmd
 ```
 
 MIT.

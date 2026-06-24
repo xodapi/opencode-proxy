@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { UsageStore, localDay } from '../src/usage_store.js';
+import { cleanupUsage } from '../scripts/cleanup-usage.mjs';
 
 const tempDirs = [];
 
@@ -74,6 +75,23 @@ describe('UsageStore', () => {
     store.pruneOldEvents(today);
 
     const text = readFileSync(path, 'utf8');
+    assert.equal(text.includes('old-model'), false);
+    assert.equal(text.includes('new-model'), true);
+  });
+
+  it('cleans usage log through the command helper', () => {
+    const { store, path } = makeStore({ retentionDays: 30, pruneIntervalMs: Number.MAX_SAFE_INTEGER });
+    const today = Date.now();
+    const old = today - 5 * 24 * 60 * 60 * 1000;
+
+    store.record({ ts: old, model: 'old-model', status: 200, ok: true, total_tokens: 10 });
+    store.record({ ts: today, model: 'new-model', status: 200, ok: true, total_tokens: 20 });
+
+    const result = cleanupUsage({ path, days: 2 });
+    const text = readFileSync(path, 'utf8');
+
+    assert.equal(result.before, 2);
+    assert.equal(result.after, 1);
     assert.equal(text.includes('old-model'), false);
     assert.equal(text.includes('new-model'), true);
   });
