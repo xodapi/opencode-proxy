@@ -1,12 +1,13 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.js';
 import { renderDashboard } from './dashboard.js';
+import { renderFlow } from './flow.js';
 import { ProxyMetrics, extractLimitFromHeaders, extractUsageFromBody, extractUsageFromText, withEstimatedUsage } from './metrics.js';
 import { Router } from './router.js';
 import { UsageStore } from './usage_store.js';
 
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
-const MANAGEMENT_PATHS = new Set(['/dashboard', '/metrics', '/usage', '/limits']);
+const MANAGEMENT_PATHS = new Set(['/dashboard', '/flow', '/metrics', '/usage', '/limits']);
 
 const SAFE_UPSTREAM_HEADERS = [
   'retry-after',
@@ -68,6 +69,12 @@ function createProxy(customConfig) {
     if (req.method === 'GET' && url.pathname === '/dashboard') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(renderDashboard());
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/flow') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(renderFlow());
       return;
     }
 
@@ -238,8 +245,17 @@ function createProxy(customConfig) {
         latency_ms: Date.now() - upstreamStartedAt,
         error_type: error.name === 'AbortError' ? 'timeout' : 'network',
       });
+      logger.error(JSON.stringify({
+        ts: new Date().toISOString(),
+        level: 'error',
+        event: 'upstream_error',
+        request_id: requestId,
+        model: selectedModel,
+        error_type: error.name === 'AbortError' ? 'timeout' : 'network',
+        error_message: error.message,
+      }));
       res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Upstream request failed', message }));
+      res.end(JSON.stringify({ error: 'Upstream request failed' }));
     } finally {
       if (abortOnClose) req.off?.('close', abortOnClose);
     }

@@ -3,6 +3,12 @@ const CHART_COLORS = [
   '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4',
 ];
 
+function getChartColor(index) {
+  if (index < CHART_COLORS.length) return CHART_COLORS[index];
+  const hue = (index * 137.508) % 360;
+  return 'hsl(' + hue + ', 70%, 60%)';
+}
+
 function renderDashboard() {
   return `<!doctype html>
 <html lang="ru" data-theme="dark">
@@ -576,6 +582,22 @@ function renderDashboard() {
       .table-card { overflow-x: auto; }
       th, td { white-space: nowrap; }
     }
+
+    @media (prefers-reduced-motion: no-preference) {
+      body, .stat-card, .chart-card, .donut-card, .table-card, .btn, .status-pill, .empty-state, .privacy-note {
+        transition: background-color .2s, color .2s, border-color .2s;
+      }
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: var(--radius-xs);
+    }
+
+    .btn:focus-visible, .chart-tab:focus-visible {
+      outline-offset: 1px;
+    }
   </style>
 </head>
 <body>
@@ -586,7 +608,7 @@ function renderDashboard() {
         <p>Мониторинг моделей, токенов и производительности</p>
       </div>
       <div class="header-actions">
-        <div class="status-pill" id="status"><span class="status-dot"></span> Загрузка...</div>
+        <div class="status-pill" id="status" role="status" aria-live="polite"><span class="status-dot"></span> Загрузка...</div>
         <a class="btn" href="/export/usage.csv?days=7" download title="Скачать статистику CSV">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
           CSV
@@ -595,7 +617,7 @@ function renderDashboard() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 13h4"/><path d="M10 17h4"/></svg>
           JSON
         </a>
-        <button class="btn btn-icon-only" id="themeToggle" type="button" title="Сменить тему">
+        <button class="btn btn-icon-only" id="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">
           <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
         </button>
         <button class="btn btn-primary" id="refresh" type="button">
@@ -660,12 +682,12 @@ function renderDashboard() {
               </div>
             </div>
           </div>
-          <div class="chart-tabs" id="activityTabs">
-            <button class="chart-tab active" data-metric="requests">Запросы</button>
-            <button class="chart-tab" data-metric="tokens">Токены</button>
+          <div class="chart-tabs" id="activityTabs" role="tablist">
+            <button class="chart-tab active" data-metric="requests" role="tab" aria-selected="true">Запросы</button>
+            <button class="chart-tab" data-metric="tokens" role="tab" aria-selected="false">Токены</button>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="activityChart"></canvas></div>
+        <div class="chart-wrap"><canvas id="activityChart" aria-label="График активности: запросы и токены по минутам"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-header">
@@ -679,7 +701,7 @@ function renderDashboard() {
             </div>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="latencyChart"></canvas></div>
+        <div class="chart-wrap"><canvas id="latencyChart" aria-label="График задержки: средняя и максимальная в мс"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-header">
@@ -693,28 +715,28 @@ function renderDashboard() {
             </div>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="costChart"></canvas></div>
+        <div class="chart-wrap"><canvas id="costChart" aria-label="График стоимости по минутам"></canvas></div>
       </div>
     </div>
 
     <div class="donuts-grid">
       <div class="donut-card">
         <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Распределение по моделям</div>
-        <div class="donut-wrap"><canvas id="modelDonut"></canvas>
+        <div class="donut-wrap"><canvas id="modelDonut" aria-label="Круговая диаграмма: распределение запросов по моделям"></canvas>
           <div class="donut-center"><div class="donut-center-value" id="modelDonutTotal">0</div><div class="donut-center-label">запр.</div></div>
         </div>
         <div class="donut-legend" id="modelLegend"></div>
       </div>
       <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></span>Prompt vs Completion</div>
-        <div class="donut-wrap"><canvas id="tokenDonut"></canvas>
+        <div class="chart-title" style="margin-bottom:12px">Prompt vs Completion</div>
+        <div class="donut-wrap"><canvas id="tokenDonut" aria-label="Круговая диаграмма: prompt против completion токенов"></canvas>
           <div class="donut-center"><div class="donut-center-value" id="tokenDonutTotal">0</div><div class="donut-center-label">токенов</div></div>
         </div>
         <div class="donut-legend" id="tokenLegend"></div>
       </div>
       <div class="donut-card">
         <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span>Успешность</div>
-        <div class="donut-wrap"><canvas id="successDonut"></canvas>
+        <div class="donut-wrap"><canvas id="successDonut" aria-label="Круговая диаграмма: успешные запросы, ошибки и лимиты"></canvas>
           <div class="donut-center"><div class="donut-center-value" id="successDonutTotal">0%</div><div class="donut-center-label">ok rate</div></div>
         </div>
         <div class="donut-legend" id="successLegend"></div>
@@ -734,7 +756,8 @@ function renderDashboard() {
       </div>
       <div class="table-card">
         <table>
-          <thead><tr><th>Модель</th><th>Статус</th><th>Остаток</th><th>Сброс</th><th class="right">Ждать</th><th>Ошибка</th></tr></thead>
+          <caption style="display:none">Лимиты API по моделям</caption>
+          <thead><tr><th scope="col">Модель</th><th scope="col">Статус</th><th scope="col">Остаток</th><th scope="col">Сброс</th><th scope="col" class="right">Ждать</th><th scope="col">Ошибка</th></tr></thead>
           <tbody id="limits"><tr><td colspan="6" class="empty-state">Активных лимитов пока нет</td></tr></tbody>
         </table>
       </div>
@@ -745,8 +768,9 @@ function renderDashboard() {
         <div class="section-title">Расход сегодня</div>
       </div>
       <div class="table-card">
-        <table>
-          <thead><tr><th>Модель</th><th class="right">Запр.</th><th class="right ok">OK</th><th class="right fail">Ошибки</th><th class="right">Токены</th><th class="right">Prompt</th><th class="right">Completion</th><th class="right">429</th><th class="right">мс</th><th class="right">Cost</th></tr></thead>
+        <table aria-label="Расход по моделям сегодня">
+          <caption style="display:none">Расход по моделям сегодня</caption>
+          <thead><tr><th scope="col">Модель</th><th scope="col" class="right">Запр.</th><th scope="col" class="right ok">OK</th><th scope="col" class="right fail">Ошибки</th><th scope="col" class="right">Токены</th><th scope="col" class="right">Prompt</th><th scope="col" class="right">Completion</th><th scope="col" class="right">429</th><th scope="col" class="right">мс</th><th scope="col" class="right">Cost</th></tr></thead>
           <tbody id="todayModels"><tr><td colspan="10" class="empty-state">Запросов сегодня ещё нет</td></tr></tbody>
         </table>
       </div>
@@ -757,8 +781,9 @@ function renderDashboard() {
         <div class="section-title">По дням</div>
       </div>
       <div class="table-card">
-        <table>
-          <thead><tr><th>День</th><th class="right">Запр.</th><th class="right ok">OK</th><th class="right fail">Ошибки</th><th class="right">Токены</th><th class="right">429</th><th class="right">Cost</th></tr></thead>
+        <table aria-label="Расход по дням">
+          <caption style="display:none">Расход по дням</caption>
+          <thead><tr><th scope="col">День</th><th scope="col" class="right">Запр.</th><th scope="col" class="right ok">OK</th><th scope="col" class="right fail">Ошибки</th><th scope="col" class="right">Токены</th><th scope="col" class="right">429</th><th scope="col" class="right">Cost</th></tr></thead>
           <tbody id="dailyUsage"><tr><td colspan="7" class="empty-state">Истории пока нет</td></tr></tbody>
         </table>
       </div>
@@ -769,8 +794,9 @@ function renderDashboard() {
         <div class="section-title">Последние запросы</div>
       </div>
       <div class="table-card">
-        <table>
-          <thead><tr><th>Время</th><th>Модель</th><th>Статус</th><th class="right">Задержка</th><th class="right">Токены</th><th class="right">Prompt</th><th class="right">Completion</th><th>Финиш</th></tr></thead>
+        <table aria-label="Последние запросы">
+          <caption style="display:none">Последние запросы</caption>
+          <thead><tr><th scope="col">Время</th><th scope="col">Модель</th><th scope="col">Статус</th><th scope="col" class="right">Задержка</th><th scope="col" class="right">Токены</th><th scope="col" class="right">Prompt</th><th scope="col" class="right">Completion</th><th scope="col">Финиш</th></tr></thead>
           <tbody id="recent"><tr><td colspan="8" class="empty-state">Запросов пока нет</td></tr></tbody>
         </table>
       </div>
@@ -781,6 +807,11 @@ function renderDashboard() {
 
   <script>
     const CHART_COLORS = ${JSON.stringify(CHART_COLORS)};
+    function getChartColor(index) {
+      if (index < CHART_COLORS.length) return CHART_COLORS[index];
+      const hue = (index * 137.508) % 360;
+      return 'hsl(' + hue + ', 70%, 60%)';
+    }
     const fmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
     const fmtInt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
     const money = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 });
@@ -832,6 +863,17 @@ function renderDashboard() {
       });
     }
 
+    const chartDataHashes = {};
+
+    function hasChartDataChanged(chartId, data) {
+      try {
+        const hash = JSON.stringify(data);
+        if (chartDataHashes[chartId] === hash) return false;
+        chartDataHashes[chartId] = hash;
+        return true;
+      } catch { return true; }
+    }
+
     function chartOpts(overrides = {}) {
       const style = getComputedStyle(document.documentElement);
       const grid = style.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,.04)';
@@ -857,6 +899,22 @@ function renderDashboard() {
     }
 
     function setText(id, text) { $(id).textContent = text; }
+
+  const CACHE_KEYS = new Map();
+
+  function setInnerCached(id, html, cacheKey) {
+    if (cacheKey != null) {
+      const prev = CACHE_KEYS.get(id);
+      if (prev === cacheKey) return;
+      CACHE_KEYS.set(id, cacheKey);
+    }
+    $(id).innerHTML = html;
+  }
+
+  function withCacheKey(data) {
+    if (!data || typeof data !== 'object') return '';
+    try { return JSON.stringify(data); } catch { return ''; }
+  }
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -966,111 +1024,54 @@ function renderDashboard() {
     }
 
     function updateActivityChart(tsData) {
-      const labels = tsData.map((b) => formatTime(b.ts));
       const chart = chartInstances.activity;
       if (!chart) return;
 
-      if (activityMode === 'requests') {
-        chart.data.labels = labels;
-        chart.data.datasets = [
-          {
-            label: 'Всего',
-            data: tsData.map((b) => b.requests),
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99,102,241,.15)',
-            fill: true,
-          },
-          {
-            label: 'OK',
-            data: tsData.map((b) => b.ok),
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16,185,129,.1)',
-            fill: true,
-          },
-          {
-            label: 'Ошибки',
-            data: tsData.map((b) => b.fail),
-            borderColor: '#f43f5e',
-            backgroundColor: 'rgba(244,63,94,.1)',
-            fill: true,
-          },
-        ];
-      } else {
-        chart.data.labels = labels;
-        chart.data.datasets = [
-          {
-            label: 'Всего',
-            data: tsData.map((b) => b.total_tokens),
-            borderColor: '#8b5cf6',
-            backgroundColor: 'rgba(139,92,246,.15)',
-            fill: true,
-          },
-          {
-            label: 'Prompt',
-            data: tsData.map((b) => b.prompt_tokens),
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99,102,241,.1)',
-            fill: true,
-          },
-          {
-            label: 'Completion',
-            data: tsData.map((b) => b.completion_tokens),
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16,185,129,.1)',
-            fill: true,
-          },
-        ];
-      }
+      const labels = tsData.map((b) => formatTime(b.ts));
+      const datasets = activityMode === 'requests' ? [
+        { label: 'Всего', data: tsData.map((b) => b.requests), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.15)', fill: true },
+        { label: 'OK', data: tsData.map((b) => b.ok), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.1)', fill: true },
+        { label: 'Ошибки', data: tsData.map((b) => b.fail), borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,.1)', fill: true },
+      ] : [
+        { label: 'Всего', data: tsData.map((b) => b.total_tokens), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,.15)', fill: true },
+        { label: 'Prompt', data: tsData.map((b) => b.prompt_tokens), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)', fill: true },
+        { label: 'Completion', data: tsData.map((b) => b.completion_tokens), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.1)', fill: true },
+      ];
+
+      if (!hasChartDataChanged('activity', { labels, datasets })) return;
+      chart.data.labels = labels;
+      chart.data.datasets = datasets;
       chart.update('none');
     }
 
     function updateLatencyChart(tsData) {
-      if (!chartInstances.latency) return;
+      const chart = chartInstances.latency;
+      if (!chart) return;
       const labels = tsData.map((b) => formatTime(b.ts));
-      chartInstances.latency.data.labels = labels;
-      chartInstances.latency.data.datasets = [
-        {
-          label: 'Средняя мс',
-          data: tsData.map((b) => b.latency_ms_avg),
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245,158,11,.1)',
-          fill: true,
-        },
-        {
-          label: 'Макс. мс',
-          data: tsData.map((b) => b.latency_ms_max),
-          borderColor: '#f43f5e',
-          backgroundColor: 'rgba(244,63,94,.05)',
-          fill: false,
-          borderDash: [4, 4],
-        },
+      const datasets = [
+        { label: 'Средняя мс', data: tsData.map((b) => b.latency_ms_avg), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.1)', fill: true },
+        { label: 'Макс. мс', data: tsData.map((b) => b.latency_ms_max), borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,.05)', fill: false, borderDash: [4, 4] },
       ];
-      chartInstances.latency.update('none');
+      if (!hasChartDataChanged('latency', { labels, datasets })) return;
+      chart.data.labels = labels;
+      chart.data.datasets = datasets;
+      chart.update('none');
     }
 
     function updateCostChart(tsData) {
-      if (!chartInstances.cost) return;
+      const chart = chartInstances.cost;
+      if (!chart) return;
       let cumulative = 0;
       const cumulativeData = tsData.map((b) => { cumulative += b.cost || 0; return Math.round(cumulative * 1000000) / 1000000; });
       const labels = tsData.map((b) => formatTime(b.ts));
-      chartInstances.cost.data.labels = labels;
-      chartInstances.cost.data.datasets = [
-        {
-          label: 'Накоплено $',
-          data: cumulativeData,
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16,185,129,.12)',
-          fill: true,
-        },
-        {
-          label: 'За минуту $',
-          data: tsData.map((b) => b.cost || 0),
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99,102,241,.08)',
-          fill: false,
-        },
+      const datasets = [
+        { label: 'Накоплено $', data: cumulativeData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.12)', fill: true },
+        { label: 'За минуту $', data: tsData.map((b) => b.cost || 0), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.08)', fill: false },
       ];
-      chartInstances.cost.update('none');
+      if (!hasChartDataChanged('cost', { labels, datasets })) return;
+      chart.data.labels = labels;
+      chart.data.datasets = datasets;
+      chart.update('none');
     }
 
     function updateDonut(chartId, legendId, centerId, labels, data, colors) {
@@ -1231,31 +1232,31 @@ function renderDashboard() {
         setText('costToday', '$' + money.format(usage.totals?.cost || all.cost || 0) + ' за 7д');
 
         const primaryModels = (data.model_status && data.model_status.primary) || [];
-        $('modelCards').innerHTML = renderRows(primaryModels, '<div class="empty-state">Нет моделей</div>', renderModelCard);
+        setInnerCached('modelCards', renderRows(primaryModels, '<div class="empty-state">Нет моделей</div>', renderModelCard), withCacheKey(primaryModels));
 
-        $('limits').innerHTML = renderRows(data.limits, '<tr><td colspan="6" class="empty-state">Активных лимитов нет</td></tr>', (limit) => {
+        setInnerCached('limits', renderRows(data.limits, '<tr><td colspan="6" class="empty-state">Активных лимитов нет</td></tr>', (limit) => {
           const reset = limit.reset_at ? new Date(limit.reset_at).toLocaleString('ru-RU') : '—';
           const wait = limit.reset_in_seconds == null ? '—' : formatDuration(limit.reset_in_seconds);
           const state = limit.limited ? 'лимит' : 'ранее';
           return '<tr><td>' + escapeHtml(limit.model) + '</td><td class="' + (limit.limited ? 'fail' : 'muted') + '">' + state + '</td><td>' + escapeHtml(formatQuota(limit)) + '</td><td>' + escapeHtml(reset) + '</td><td class="right">' + escapeHtml(wait) + '</td><td>' + escapeHtml(limit.error_type || '') + '</td></tr>';
-        });
+        }), withCacheKey(data.limits));
 
         const todayRows = ((usage.by_model_today || []).filter((row) => row.requests > 0));
-        $('todayModels').innerHTML = renderRows(todayRows, '<tr><td colspan="10" class="empty-state">Запросов сегодня нет</td></tr>', (m) =>
+        setInnerCached('todayModels', renderRows(todayRows, '<tr><td colspan="10" class="empty-state">Запросов сегодня нет</td></tr>', (m) =>
           '<tr><td>' + escapeHtml(m.model) + '</td><td class="right">' + fmtInt.format(m.requests) + '</td><td class="right ok">' + fmtInt.format(m.ok) + '</td><td class="right fail">' + fmtInt.format(m.fail) + '</td><td class="right">' + escapeHtml(tokenText(m)) + '</td><td class="right">' + escapeHtml(tokenPartText(m, 'prompt_tokens')) + '</td><td class="right">' + escapeHtml(tokenPartText(m, 'completion_tokens')) + '</td><td class="right warn">' + fmtInt.format(m.rate_limited || 0) + '</td><td class="right">' + fmtInt.format(m.latency_ms_avg) + '</td><td class="right">' + money.format(m.cost || 0) + '</td></tr>'
-        );
+        ), withCacheKey(todayRows));
 
         const dayRows = (usage.by_day || []).filter((row) => row.requests > 0);
-        $('dailyUsage').innerHTML = renderRows(dayRows, '<tr><td colspan="7" class="empty-state">Истории нет</td></tr>', (day) =>
+        setInnerCached('dailyUsage', renderRows(dayRows, '<tr><td colspan="7" class="empty-state">Истории нет</td></tr>', (day) =>
           '<tr><td>' + escapeHtml(day.day) + '</td><td class="right">' + fmtInt.format(day.requests) + '</td><td class="right ok">' + fmtInt.format(day.ok) + '</td><td class="right fail">' + fmtInt.format(day.fail) + '</td><td class="right">' + escapeHtml(tokenText(day)) + '</td><td class="right warn">' + fmtInt.format(day.rate_limited || 0) + '</td><td class="right">' + money.format(day.cost || 0) + '</td></tr>'
-        );
+        ), withCacheKey(dayRows));
 
-        $('recent').innerHTML = renderRows(data.recent, '<tr><td colspan="8" class="empty-state">Запросов нет</td></tr>', (e) => {
+        setInnerCached('recent', renderRows(data.recent, '<tr><td colspan="8" class="empty-state">Запросов нет</td></tr>', (e) => {
           const statusClass = e.ok ? 'ok' : 'fail';
           const detail = e.ok ? e.finish_reason : e.error_type;
           return '<tr><td>' + new Date(e.ts).toLocaleTimeString('ru-RU') + '</td><td>' + escapeHtml(e.model) + '</td><td class="' + statusClass + '">' + escapeHtml(String(e.status)) + '</td><td class="right">' + fmtInt.format(e.latency_ms) + 'мс</td><td class="right">' + escapeHtml(tokenText(e)) + '</td><td class="right">' + escapeHtml(tokenPartText(e, 'prompt_tokens')) + '</td><td class="right">' + escapeHtml(tokenPartText(e, 'completion_tokens')) + '</td><td>' + escapeHtml(detail || '') + '</td></tr>';
-        });
-
+        }), withCacheKey(data.recent));
+ 
         if (ts.length > 0 && hasCharts()) {
           const visibleTs = ts.slice(-60);
           updateActivityChart(visibleTs);
@@ -1278,7 +1279,7 @@ function renderDashboard() {
         }
         const modelLabels = Object.keys(modelAgg).sort((a, b) => modelAgg[b] - modelAgg[a]);
         const modelData = modelLabels.map((m) => modelAgg[m]);
-        updateDonut('modelDonut', 'modelLegend', 'modelDonutTotal', modelLabels, modelData, CHART_COLORS.slice(0, modelLabels.length));
+        updateDonut('modelDonut', 'modelLegend', 'modelDonutTotal', modelLabels, modelData, modelLabels.map((_, i) => getChartColor(i)));
 
         let totalPrompt = 0, totalCompletion = 0;
         if (today.requests) {
@@ -1310,14 +1311,18 @@ function renderDashboard() {
       const next = current === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('oc-dash-theme', next);
-      setTimeout(updateChartColors, 50);
+      requestAnimationFrame(() => requestAnimationFrame(updateChartColors));
     });
 
     $('activityTabs').addEventListener('click', (e) => {
       const tab = e.target.closest('.chart-tab');
       if (!tab) return;
-      document.querySelectorAll('#activityTabs .chart-tab').forEach((t) => t.classList.remove('active'));
+      document.querySelectorAll('#activityTabs .chart-tab').forEach((t) => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
       activityMode = tab.dataset.metric === 'tokens' ? 'tokens' : 'requests';
     });
 
@@ -1326,6 +1331,8 @@ function renderDashboard() {
     const savedTheme = localStorage.getItem('oc-dash-theme');
     if (savedTheme === 'light' || savedTheme === 'dark') {
       document.documentElement.setAttribute('data-theme', savedTheme);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      document.documentElement.setAttribute('data-theme', 'light');
     }
 
     initCharts();
