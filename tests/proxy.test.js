@@ -125,6 +125,64 @@ describe('Config', () => {
     assert.equal(config.routing, 'random');
     delete process.env.ROUTING;
   });
+
+  it('should validate numeric and routing env values', () => {
+    process.env.PORT = 'not-a-port';
+    process.env.ROUTING = 'bad-routing';
+    process.env.UPSTREAM_TIMEOUT = '-1';
+    process.env.MAX_BODY_BYTES = '4096';
+    const config = loadConfig();
+    assert.equal(config.port, 3000);
+    assert.equal(config.routing, 'round-robin');
+    assert.equal(config.timeout, 30000);
+    assert.equal(config.maxBodyBytes, 4096);
+    delete process.env.PORT;
+    delete process.env.ROUTING;
+    delete process.env.UPSTREAM_TIMEOUT;
+    delete process.env.MAX_BODY_BYTES;
+  });
+
+  it('should require management auth when token is configured', async () => {
+    const { proxyRequest } = createProxy({
+      apiKey: 'key',
+      models: ['m1'],
+      upstream: 'https://test.com/v1',
+      managementToken: 'secret',
+      managementAuthRequired: true,
+    });
+
+    const denied = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/metrics', headers: {} }, denied);
+    assert.equal(denied.statusCode, 401);
+    assert.equal(denied.headers['WWW-Authenticate'], 'Basic realm="OpenCode Proxy"');
+
+    const allowed = makeResponse(true);
+    await proxyRequest({
+      method: 'GET',
+      url: '/metrics',
+      headers: { authorization: 'Bearer secret' },
+    }, allowed);
+    assert.equal(allowed.statusCode, 200);
+    assert.equal(allowed.body.summary.window.requests, 0);
+  });
+
+  it('should close management endpoints on exposed host without token', async () => {
+    const { proxyRequest } = createProxy({
+      apiKey: 'key',
+      host: '0.0.0.0',
+      models: ['m1'],
+      upstream: 'https://test.com/v1',
+      managementAuthRequired: true,
+    });
+
+    const denied = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/dashboard', headers: {} }, denied);
+    assert.equal(denied.statusCode, 403);
+
+    const models = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/v1/models', headers: {} }, models);
+    assert.equal(models.statusCode, 200);
+  });
 });
 
 describe('createProxy', () => {
@@ -407,7 +465,7 @@ describe('createProxy', () => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
     try {
-      const { proxyRequest } = createProxy({
+      const { proxyRequest, metrics } = createProxy({
         apiKey: 'key',
         models: ['m1'],
         primaryModels: ['m1'],
@@ -423,6 +481,7 @@ describe('createProxy', () => {
       });
       const res = makeResponse();
       await proxyRequest(req, res);
+      await metrics.flush();
 
       const text = readFileSync(usageDbPath, 'utf8');
       assert.equal(text.includes('secret prompt'), false);
@@ -469,6 +528,7 @@ describe('createProxy', () => {
         model: 'm1',
         messages: [{ role: 'user', content: 'secret prompt' }],
       }), makeResponse());
+      await first.metrics.flush();
 
       const restarted = createProxy({
         apiKey: 'key',

@@ -18,4 +18,20 @@ describe('dashboard', () => {
     assert.ok(script);
     new Function(script);
   });
+
+  it('pins the external Chart.js script with SRI', () => {
+    const html = renderDashboard();
+
+    assert.match(html, /chart\.js@4\.4\.7/);
+    assert.match(html, /integrity="sha384-/);
+    assert.match(html, /crossorigin="anonymous"/);
+  });
+
+  it('updates status text without assigning innerHTML', () => {
+    const html = renderDashboard();
+    const script = html.match(/<script>([\s\S]*)<\/script>/)?.[1] || '';
+
+    assert.match(script, /pill\.replaceChildren/);
+    assert.doesNotMatch(script, /pill\.innerHTML =/);
+  });
 });

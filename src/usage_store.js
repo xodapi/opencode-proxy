@@ -1,9 +1,9 @@
 import {
-  appendFileSync,
   closeSync,
   existsSync,
   mkdirSync,
   openSync,
+  promises as fsPromises,
   readFileSync,
   readSync,
   renameSync,
@@ -31,17 +31,36 @@ class UsageStore {
     this.pruneIntervalMs = positiveInteger(options.pruneIntervalMs, 60 * 60 * 1000);
     this.lastPruneTs = 0;
     this.lastError = '';
+    this.writeQueue = Promise.resolve();
+    this.pendingEvents = [];
   }
 
   record(event) {
     if (!this.enabled) return false;
 
+    const safeEvent = sanitizeUsageEvent(event);
+    const line = `${JSON.stringify(safeEvent)}\n`;
+    this.pendingEvents.push(safeEvent);
+
+    this.writeQueue = this.writeQueue.then(async () => {
+      try {
+        await fsPromises.mkdir(dirname(this.path), { recursive: true });
+        await fsPromises.appendFile(this.path, line, 'utf8');
+        removePendingEvent(this.pendingEvents, safeEvent);
+        this.pruneIfNeeded(safeEvent.ts);
+        this.lastError = '';
+      } catch (error) {
+        removePendingEvent(this.pendingEvents, safeEvent);
+        this.lastError = error?.message || String(error);
+      }
+    });
+
+    return true;
+  }
+
+  async flush() {
     try {
-      const safeEvent = sanitizeUsageEvent(event);
-      mkdirSync(dirname(this.path), { recursive: true });
-      appendFileSync(this.path, `${JSON.stringify(safeEvent)}\n`, 'utf8');
-      this.pruneIfNeeded(safeEvent.ts);
-      this.lastError = '';
+      await this.writeQueue;
       return true;
     } catch (error) {
       this.lastError = error?.message || String(error);
@@ -52,7 +71,7 @@ class UsageStore {
   summary(options = {}) {
     const days = positiveInteger(options.days, 7);
     const now = Number.isFinite(options.now) ? options.now : Date.now();
-    const events = this.enabled ? this.readEvents() : [];
+    const events = this.enabled ? [...this.readEvents(), ...this.pendingEvents] : [];
     return summarizeUsageEvents(events, {
       days,
       models: options.models || [],
@@ -102,6 +121,11 @@ class UsageStore {
       return false;
     }
   }
+}
+
+function removePendingEvent(pendingEvents, event) {
+  const index = pendingEvents.indexOf(event);
+  if (index >= 0) pendingEvents.splice(index, 1);
 }
 
 function atomicWriteFile(filePath, text) {

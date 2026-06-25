@@ -217,6 +217,15 @@ npm run secret-scan
 .\model-health.cmd --fail-on warning
 ```
 
+Быстрый статус локального proxy из `/metrics`, без открытия dashboard:
+
+```powershell
+.\proxy-status.cmd
+.\proxy-status.cmd --compact
+.\proxy-status.cmd --json
+.\proxy-status.cmd --fail-on limited
+```
+
 Локальная панель аналитики:
 
 ```text
@@ -227,6 +236,12 @@ JSON-метрики для автоматизации:
 
 ```text
 http://127.0.0.1:3000/metrics
+```
+
+CLI-снимок тех же метрик:
+
+```powershell
+npm run proxy-status -- --compact
 ```
 
 Суточная история расхода:
@@ -294,9 +309,14 @@ Invoke-RestMethod http://127.0.0.1:3000/limits
 | `ROUTING` | `round-robin` или `random` |
 | `UPSTREAM_URL` | `https://opencode.ai/zen/v1` |
 | `UPSTREAM_TIMEOUT` | `30000` мс |
+| `MAX_BODY_BYTES` | `2097152` байт для `POST /v1/chat/completions` |
 | `METRICS_MAX_EVENTS` | `2000` событий в памяти |
 | `USAGE_DB_PATH` | `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`; `off` отключает файл |
 | `USAGE_RETENTION_DAYS` | `30` дней для локальной истории |
+| `MANAGEMENT_TOKEN` | пусто; включает Basic/Bearer auth для `/dashboard`, `/metrics`, `/usage`, `/limits`, `/export/*` |
+| `ACCESS_LOG` | `on`; `off` отключает JSON access log |
+| `SHUTDOWN_TIMEOUT_MS` | `10000` мс на graceful shutdown |
+| `OPENCODE_PROXY_STATUS_FAIL_ON` | `error`; для `proxy-status`: `limited`, `error` или `never` |
 
 Пример с конкретным портом:
 
@@ -310,6 +330,9 @@ npm start
 ```text
 http://127.0.0.1:3010/v1
 ```
+
+Если вы намеренно слушаете не localhost, например `HOST=0.0.0.0`, задайте `MANAGEMENT_TOKEN`.
+Без токена proxy закроет management endpoints, чтобы не отдавать usage/metrics в сеть. Для dashboard браузер покажет Basic Auth: имя можно ввести любое, токен указывается как пароль. Для автоматизации можно использовать `Authorization: Bearer <token>`.
 
 ### Как это работает
 
@@ -342,8 +365,8 @@ Rust-версия возможна как следующий этап: один 
 
 ### Риски и ограничения
 
-- Это локальный proxy без собственной авторизации, поэтому по умолчанию он привязан к `127.0.0.1`.
-- Не запускайте его на `0.0.0.0`, если не понимаете сетевые последствия.
+- По умолчанию proxy привязан к `127.0.0.1`; при сетевой экспозиции используйте `MANAGEMENT_TOKEN`.
+- Не запускайте его на `0.0.0.0`, если не понимаете сетевые последствия для `/v1/chat/completions`.
 - Не вставляйте личный Zen API key в README, скриншоты или общий чат.
 - Free-модели могут измениться или временно перестать работать на стороне OpenCode Zen.
 - Если `npm install` падает с `ENOTFOUND`, проблема обычно в DNS/сети, а не в этом проекте.
@@ -602,6 +625,15 @@ Check which free models are actually responding now:
 .\model-health.cmd --fail-on warning
 ```
 
+Quick local proxy status from `/metrics`, without opening the dashboard:
+
+```powershell
+.\proxy-status.cmd
+.\proxy-status.cmd --compact
+.\proxy-status.cmd --json
+.\proxy-status.cmd --fail-on limited
+```
+
 Local analytics dashboard:
 
 ```text
@@ -612,6 +644,12 @@ JSON metrics for automation:
 
 ```text
 http://127.0.0.1:3000/metrics
+```
+
+CLI snapshot for the same metrics:
+
+```powershell
+npm run proxy-status -- --compact
 ```
 
 Daily usage history:
@@ -679,9 +717,17 @@ Environment variables:
 | `ROUTING` | `round-robin` or `random` |
 | `UPSTREAM_URL` | `https://opencode.ai/zen/v1` |
 | `UPSTREAM_TIMEOUT` | `30000` ms |
+| `MAX_BODY_BYTES` | `2097152` bytes for `POST /v1/chat/completions` |
 | `METRICS_MAX_EVENTS` | `2000` in-memory events |
 | `USAGE_DB_PATH` | `%USERPROFILE%\.config\opencode-proxy\usage.jsonl`; `off` disables the file |
 | `USAGE_RETENTION_DAYS` | `30` days for local history |
+| `MANAGEMENT_TOKEN` | empty; enables Basic/Bearer auth for `/dashboard`, `/metrics`, `/usage`, `/limits`, `/export/*` |
+| `ACCESS_LOG` | `on`; `off` disables JSON access logs |
+| `SHUTDOWN_TIMEOUT_MS` | `10000` ms graceful shutdown budget |
+| `OPENCODE_PROXY_STATUS_FAIL_ON` | `error`; for `proxy-status`: `limited`, `error`, or `never` |
+
+If you intentionally bind outside localhost, for example `HOST=0.0.0.0`, set `MANAGEMENT_TOKEN`.
+Without a token, the proxy closes management endpoints so usage and metrics are not exposed to the network. Browser dashboard access uses Basic Auth: any username is accepted, and the token is the password. Automation can send `Authorization: Bearer <token>`.
 
 ### How it works
 
@@ -713,8 +759,8 @@ A Rust version is still a good next step for a single `.exe` launcher/doctor, au
 
 ### Risks and limits
 
-- The proxy has no built-in auth, so it binds to `127.0.0.1` by default.
-- Do not run it on `0.0.0.0` unless you understand the network exposure.
+- The proxy binds to `127.0.0.1` by default; use `MANAGEMENT_TOKEN` if exposing management endpoints.
+- Do not run it on `0.0.0.0` unless you understand the `/v1/chat/completions` network exposure.
 - Do not paste a personal Zen API key into README files, screenshots, or shared chats.
 - Free-model availability is controlled by OpenCode Zen and may change.
 - If `npm install` fails with `ENOTFOUND`, it is usually a DNS/network problem.

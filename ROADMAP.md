@@ -15,6 +15,61 @@ This project should stay small, local-first, and safe by default. The goal is to
 - OpenCode Desktop configuration through a dedicated `zenproxy` provider.
 - Source-only release archive builder through `build-release.cmd`.
 
+## Technical debt status after the 2026-06-25 audit
+
+Closed in the hardening pass:
+
+- Bounded request body reads for `POST /v1/chat/completions`.
+- Safe handling of request-body stream failures.
+- CSV formula injection protection for usage exports.
+- SRI pinning for the external Chart.js asset.
+- Safer dashboard status rendering without assigning server text through `innerHTML`.
+- Optional Basic/Bearer auth for management endpoints through `MANAGEMENT_TOKEN`.
+- Management endpoints closed automatically when `HOST` is exposed without a token.
+- Structured JSON access logs, disabled with `ACCESS_LOG=off`.
+- Async queued usage appends with `flush()` for shutdown and tests.
+- Graceful `SIGINT`/`SIGTERM` shutdown with usage flush.
+- Config normalization for ports, timeouts, routing, upstream URLs, body limits, and shutdown timeout.
+- `proxy-status` CLI inspired by `neurogate-limit-watch`: human, JSON, compact, and `--fail-on` output from `/metrics`.
+
+Remaining debt, in recommended order:
+
+1. Make usage summaries fully async or cache-backed so `/metrics` never does sync tail reads on large files.
+2. Split `src/proxy.js` into small route handlers for management, OpenAI-compatible API, exports, and shared response helpers.
+3. Split `src/dashboard.js` into static HTML/CSS/JS assets or a tiny no-build asset layout.
+4. Remove inline dashboard script/style so Content Security Policy can drop `'unsafe-inline'`.
+5. Add request schema validation for `/v1/chat/completions`.
+
+## Development plan
+
+### Phase A: reliability foundation
+
+- Finish async/cache-backed usage reads.
+- Add upstream health polling and a small circuit-breaker state per model.
+- Add retry with bounded exponential backoff for transient `429` and `5xx` responses.
+- Keep failover conservative: try the next configured model only when the request is safe to retry.
+
+### Phase B: observability
+
+- Add `/metrics/prometheus` for local Prometheus-compatible scraping.
+- Track latency percentiles per model, not only averages and max.
+- Add optional alert webhook for repeated `5xx`, timeout, or rate-limit spikes.
+- Add more `--json` snapshots to the launcher/doctor scripts where automation needs stable output.
+
+### Phase C: security hardening
+
+- Add configurable CORS origins; keep deny-by-default for browsers outside same-origin.
+- Remove dashboard inline JS/CSS and tighten CSP.
+- Add optional request allowlist for remote deployments.
+- Document a supported `ssh -L` pattern instead of encouraging direct LAN exposure.
+
+### Phase D: packaging and operations
+
+- Add CI for `npm test`, secret scan, and source-only release archive validation.
+- Add optional `.env` loading for local Windows users without requiring a package dependency.
+- Add graceful port fallback `3000 -> 3001 -> 3002` and update generated OpenCode config.
+- Add an optional Windows startup registration flow, disabled by default.
+
 ## Useful patterns from nearby projects
 
 From a local limit-watch side project:

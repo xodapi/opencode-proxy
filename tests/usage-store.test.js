@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe('UsageStore', () => {
-  it('records privacy-safe JSONL rows without prompts or responses', () => {
+  it('records privacy-safe JSONL rows without prompts or responses', async () => {
     const { store, path } = makeStore();
     const now = new Date(2026, 5, 23, 12, 0, 0).getTime();
 
@@ -32,6 +32,7 @@ describe('UsageStore', () => {
       messages: [{ role: 'user', content: 'secret prompt' }],
       response: 'secret response',
     }), true);
+    await store.flush();
 
     const text = readFileSync(path, 'utf8');
     const row = JSON.parse(text.trim());
@@ -44,7 +45,7 @@ describe('UsageStore', () => {
     assert.equal(Object.hasOwn(row, 'response'), false);
   });
 
-  it('aggregates usage by local day and model', () => {
+  it('aggregates usage by local day and model', async () => {
     const { store } = makeStore();
     const today = new Date(2026, 5, 23, 12, 0, 0).getTime();
     const yesterday = new Date(2026, 5, 22, 12, 0, 0).getTime();
@@ -52,6 +53,7 @@ describe('UsageStore', () => {
     store.record({ ts: yesterday, model: 'm1', status: 200, ok: true, total_tokens: 100, latency_ms: 20 });
     store.record({ ts: today, model: 'm1', status: 429, ok: false, rate_limited: true, total_tokens: 0, latency_ms: 40 });
     store.record({ ts: today, model: 'm2', status: 200, ok: true, total_tokens: 50, latency_ms: 60 });
+    await store.flush();
 
     const summary = store.summary({ days: 2, models: ['m1', 'm2'], now: today });
     assert.equal(summary.enabled, true);
@@ -65,13 +67,28 @@ describe('UsageStore', () => {
     assert.equal(summary.by_model_today.find((item) => item.model === 'm2').total_tokens, 50);
   });
 
-  it('prunes events outside the retention window', () => {
+  it('includes queued records in summaries before disk flush completes', async () => {
+    const { store } = makeStore();
+    const now = new Date(2026, 5, 23, 12, 0, 0).getTime();
+
+    store.record({ ts: now, model: 'queued-model', status: 200, ok: true, total_tokens: 9 });
+
+    const pendingSummary = store.summary({ days: 1, models: ['queued-model'], now });
+    assert.equal(pendingSummary.by_model_today.find((item) => item.model === 'queued-model').total_tokens, 9);
+
+    await store.flush();
+    const flushedSummary = store.summary({ days: 1, models: ['queued-model'], now });
+    assert.equal(flushedSummary.by_model_today.find((item) => item.model === 'queued-model').total_tokens, 9);
+  });
+
+  it('prunes events outside the retention window', async () => {
     const { dir, store, path } = makeStore({ retentionDays: 2, pruneIntervalMs: 1 });
     const today = new Date(2026, 5, 23, 12, 0, 0).getTime();
     const old = new Date(2026, 5, 20, 12, 0, 0).getTime();
 
     store.record({ ts: old, model: 'old-model', status: 200, ok: true, total_tokens: 10 });
     store.record({ ts: today, model: 'new-model', status: 200, ok: true, total_tokens: 20 });
+    await store.flush();
     store.pruneOldEvents(today);
 
     const text = readFileSync(path, 'utf8');
@@ -80,13 +97,14 @@ describe('UsageStore', () => {
     assert.equal(readdirSync(dir).some((name) => name.includes('.tmp.')), false);
   });
 
-  it('cleans usage log through the command helper', () => {
+  it('cleans usage log through the command helper', async () => {
     const { store, path } = makeStore({ retentionDays: 30, pruneIntervalMs: Number.MAX_SAFE_INTEGER });
     const today = Date.now();
     const old = today - 5 * 24 * 60 * 60 * 1000;
 
     store.record({ ts: old, model: 'old-model', status: 200, ok: true, total_tokens: 10 });
     store.record({ ts: today, model: 'new-model', status: 200, ok: true, total_tokens: 20 });
+    await store.flush();
 
     const result = cleanupUsage({ path, days: 2 });
     const text = readFileSync(path, 'utf8');

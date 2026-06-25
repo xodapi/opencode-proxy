@@ -1,3 +1,4 @@
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.js';
 import { renderDashboard } from './dashboard.js';
 import { ProxyMetrics, extractLimitFromHeaders, extractUsageFromBody, extractUsageFromText, withEstimatedUsage } from './metrics.js';
@@ -5,6 +6,7 @@ import { Router } from './router.js';
 import { UsageStore } from './usage_store.js';
 
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MANAGEMENT_PATHS = new Set(['/dashboard', '/metrics', '/usage', '/limits']);
 
 const SAFE_UPSTREAM_HEADERS = [
   'retry-after',
@@ -37,9 +39,25 @@ function createProxy(customConfig) {
     primaryModels: config.primaryModels,
     usageStore,
   });
+  const logger = config.logger || console;
 
   async function proxyRequest(req, res) {
+    const requestStartedAt = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
+    const requestId = requestIdFor(req);
+    const logContext = {};
+    instrumentResponse(req, res, {
+      config,
+      logger,
+      logContext,
+      requestId,
+      requestStartedAt,
+      url,
+    });
+
+    if (!authorizeManagementRequest(req, res, config, url)) {
+      return;
+    }
 
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -156,8 +174,9 @@ function createProxy(customConfig) {
     }
 
     const selectedModel = router.getModelForRequest(parsed.model);
+    logContext.model = selectedModel;
     parsed.model = selectedModel;
-    const startedAt = Date.now();
+    const upstreamStartedAt = Date.now();
     let timer;
     let abortOnClose;
 
@@ -181,6 +200,7 @@ function createProxy(customConfig) {
       });
       clearTimeout(timer);
       timer = null;
+      logContext.upstream_status = response.status;
 
       const text = await response.text();
       const parsedResponse = safeParseJSON(text);
@@ -193,7 +213,7 @@ function createProxy(customConfig) {
         model: selectedModel,
         status: response.status,
         ok: response.ok,
-        latency_ms: Date.now() - startedAt,
+        latency_ms: Date.now() - upstreamStartedAt,
         error_type: response.ok ? '' : upstreamErrorType(parsedResponse, response.status),
         ...usage,
         ...limit,
@@ -215,7 +235,7 @@ function createProxy(customConfig) {
         model: selectedModel,
         status: 502,
         ok: false,
-        latency_ms: Date.now() - startedAt,
+        latency_ms: Date.now() - upstreamStartedAt,
         error_type: error.name === 'AbortError' ? 'timeout' : 'network',
       });
       res.writeHead(502, { 'Content-Type': 'application/json' });
@@ -225,7 +245,144 @@ function createProxy(customConfig) {
     }
   }
 
-  return { proxyRequest, config, router, metrics };
+  return { proxyRequest, config, router, metrics, usageStore };
+}
+
+function instrumentResponse(req, res, options) {
+  const { config, logger, logContext, requestId, requestStartedAt, url } = options;
+  const originalWriteHead = res.writeHead?.bind(res);
+
+  if (res.setHeader) {
+    res.setHeader('X-Request-Id', requestId);
+  }
+
+  if (originalWriteHead) {
+    res.writeHead = (status, headers = {}) => {
+      logContext.status = status;
+      return originalWriteHead(status, {
+        ...securityHeadersFor(url),
+        ...headers,
+        'X-Request-Id': requestId,
+      });
+    };
+  }
+
+  res.on?.('finish', () => {
+    if (config.accessLog !== true) return;
+    const entry = {
+      ts: new Date().toISOString(),
+      level: 'info',
+      event: 'http_request',
+      request_id: requestId,
+      method: req.method || '',
+      path: url.pathname,
+      status: logContext.status || res.statusCode || 0,
+      latency_ms: Date.now() - requestStartedAt,
+    };
+    if (logContext.model) entry.model = logContext.model;
+    if (logContext.upstream_status) entry.upstream_status = logContext.upstream_status;
+    logger.log?.(JSON.stringify(entry));
+  });
+}
+
+function securityHeadersFor(url) {
+  const headers = {
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+  };
+
+  if (isManagementPath(url.pathname)) {
+    headers['Cache-Control'] = 'no-store';
+  }
+
+  if (url.pathname === '/dashboard') {
+    headers['Content-Security-Policy'] = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline'",
+      "connect-src 'self'",
+      "img-src 'self' data:",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "frame-ancestors 'none'",
+    ].join('; ');
+  }
+
+  return headers;
+}
+
+function authorizeManagementRequest(req, res, config, url) {
+  if (req.method !== 'GET' || !isManagementPath(url.pathname)) return true;
+  if (config.managementAuthRequired !== true) return true;
+
+  if (!config.managementToken) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      error: 'Management endpoints require MANAGEMENT_TOKEN when HOST is not localhost',
+    }));
+    return false;
+  }
+
+  if (hasValidManagementToken(req.headers, config.managementToken)) return true;
+
+  res.writeHead(401, {
+    'Content-Type': 'application/json',
+    'WWW-Authenticate': 'Basic realm="OpenCode Proxy"',
+  });
+  res.end(JSON.stringify({ error: 'Unauthorized' }));
+  return false;
+}
+
+function isManagementPath(pathname) {
+  return MANAGEMENT_PATHS.has(pathname)
+    || pathname === '/export/usage'
+    || pathname === '/export/usage.json'
+    || pathname === '/export/usage.csv';
+}
+
+function hasValidManagementToken(headers, expectedToken) {
+  const directToken = headerValue(headers, 'x-proxy-token');
+  if (tokenMatches(directToken, expectedToken)) return true;
+
+  const authorization = headerValue(headers, 'authorization');
+  const bearer = authorization.match(/^Bearer\s+(.+)$/i);
+  if (bearer && tokenMatches(bearer[1].trim(), expectedToken)) return true;
+
+  const basic = authorization.match(/^Basic\s+(.+)$/i);
+  if (!basic) return false;
+
+  try {
+    const decoded = Buffer.from(basic[1].trim(), 'base64').toString('utf8');
+    const separator = decoded.indexOf(':');
+    const token = separator >= 0 ? decoded.slice(separator + 1) : decoded;
+    return tokenMatches(token, expectedToken);
+  } catch {
+    return false;
+  }
+}
+
+function tokenMatches(actual, expected) {
+  if (!actual || !expected) return false;
+  const actualBuffer = Buffer.from(String(actual));
+  const expectedBuffer = Buffer.from(String(expected));
+  if (actualBuffer.length !== expectedBuffer.length) return false;
+  return timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+function requestIdFor(req) {
+  return headerValue(req.headers, 'x-request-id') || randomUUID();
+}
+
+function headerValue(headers, name) {
+  if (!headers) return '';
+  if (headers.get) return headers.get(name) || headers.get(name.toLowerCase()) || '';
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (String(key).toLowerCase() === lowerName) {
+      return Array.isArray(value) ? String(value[0] || '') : String(value || '');
+    }
+  }
+  return '';
 }
 
 async function readRequestBody(req, maxBodyBytes = DEFAULT_MAX_BODY_BYTES) {

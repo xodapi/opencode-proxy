@@ -179,6 +179,13 @@ class ProxyMetrics {
     }
   }
 
+  async flush() {
+    if (this.usageStore?.flush) {
+      return this.usageStore.flush();
+    }
+    return true;
+  }
+
   _updateTimeseries(event) {
     const minuteTs = Math.floor(event.ts / 60000) * 60000;
     let bucket = this.timeseriesByMinute.get(minuteTs);

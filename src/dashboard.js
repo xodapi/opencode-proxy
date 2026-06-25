@@ -10,7 +10,7 @@ function renderDashboard() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenCode Proxy Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
     :root {
       --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -1098,7 +1098,6 @@ function renderDashboard() {
       const reset = item.reset_at ? 'Сброс через ' + formatDuration(item.reset_in_seconds) : resetFallback(state, item);
       const quota = formatQuota(item);
       const percent = quotaPercent(item);
-      const barClass = 'progress-track';
       const fillClass = percent == null ? 'unknown' : (state === 'limited' ? 'bad' : 'good');
       const previousText = previous
         ? previous.day + ': ' + fmt.format(previous.requests) + ' / ' + tokenText(previous)
@@ -1114,7 +1113,7 @@ function renderDashboard() {
         '<div class="model-card-header"><div class="model-name">' + escapeHtml(item.model) + '</div><div class="badge ' + escapeHtml(state) + '">' + escapeHtml(label) + '</div></div>' +
         '<div class="model-status-text">' + escapeHtml(headline(state)) + '</div>' +
         '<div class="model-sub">' + escapeHtml(sub) + '</div>' +
-        '<div class="quota-bar"><div class="quota-row"><span>Остаток</span><strong>' + escapeHtml(quota) + '</strong></div><div class="' + barClass + '"><div class="progress-fill ' + fillClass + '" style="width:' + (percent == null ? '0' : percent) + '%"></div></div></div>' +
+        '<div class="quota-bar"><div class="quota-row"><span>Остаток</span><strong>' + escapeHtml(quota) + '</strong></div><div class="progress-track"><div class="progress-fill ' + fillClass + '" style="width:' + (percent == null ? '0' : percent) + '%"></div></div></div>' +
         '<div class="model-stats">' +
           '<div><div class="model-stat-label">Сегодня</div><div class="model-stat-value">' + fmt.format(today.requests || 0) + '</div></div>' +
           '<div><div class="model-stat-label">Токены</div><div class="model-stat-value">' + escapeHtml(tokenText(today)) + '</div></div>' +
@@ -1216,7 +1215,10 @@ function renderDashboard() {
 
         const pill = $('status');
         pill.classList.remove('error');
-        pill.innerHTML = '<span class="status-dot"></span> ' + new Date(data.generated_at).toLocaleTimeString('ru-RU') + ' · uptime ' + formatDuration(data.uptime_seconds);
+        pill.replaceChildren(
+          statusDot(),
+          document.createTextNode(' ' + new Date(data.generated_at).toLocaleTimeString('ru-RU') + ' · uptime ' + formatDuration(data.uptime_seconds)),
+        );
         setText('requests', fmtInt.format(s.requests));
         setText('rpm', fmt.format(s.requests_per_minute) + ' rpm · сегодня ' + fmtInt.format(today.requests || 0));
         setText('tpm', tokenText(today));
@@ -1316,7 +1318,7 @@ function renderDashboard() {
       if (!tab) return;
       document.querySelectorAll('#activityTabs .chart-tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
-      activityMode = tab.dataset.metric;
+      activityMode = tab.dataset.metric === 'tokens' ? 'tokens' : 'requests';
     });
 
     $('refresh').addEventListener('click', refresh);
