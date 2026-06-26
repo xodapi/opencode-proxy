@@ -650,6 +650,26 @@ describe('createProxy', () => {
     assert.equal(goodRes.body.code, 0);
     assert.ok(typeof goodRes.body.output === 'string');
   });
+
+  it('should require management auth for /api/run-script when token is configured', async () => {
+    const { proxyRequest } = createProxy({
+      apiKey: 'key',
+      models: ['m1'],
+      upstream: 'https://test.com/v1',
+      managementToken: 'secret',
+      managementAuthRequired: true,
+    });
+
+    const denied = makeResponse(true);
+    await proxyRequest(makeJSONRequest('/api/run-script', { script: 'secret-scan' }), denied);
+    assert.equal(denied.statusCode, 401);
+
+    const allowed = makeResponse(true);
+    const req = makeJSONRequest('/api/run-script', { script: 'secret-scan' }, { authorization: 'Bearer secret' });
+    await proxyRequest(req, allowed);
+    assert.equal(allowed.statusCode, 200);
+    assert.equal(allowed.body.code, 0);
+  });
 });
 
 function makeResponse(parseJSON = false) {
@@ -665,10 +685,11 @@ function makeResponse(parseJSON = false) {
   };
 }
 
-function makeJSONRequest(url, body) {
+function makeJSONRequest(url, body, headers = {}) {
   return {
     method: 'POST',
     url,
+    headers,
     async *[Symbol.asyncIterator]() {
       yield Buffer.from(JSON.stringify(body));
     },

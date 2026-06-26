@@ -32,18 +32,8 @@ try {
     "RELEASE_CHECKLIST.md",
     "ROADMAP.md",
     "package.json",
-    "doctor.cmd",
-    "doctor-factory.cmd",
-    "model-health.cmd",
-    "proxy-status.cmd",
-    "start-proxy.cmd",
-    "open-opencode.cmd",
-    "run-opencode-proxy.cmd",
-    "install-opencode.cmd",
-    "setup-factory-droid.cmd",
-    "cleanup-usage.cmd",
-    "secret-scan.cmd",
-    "build-release.cmd"
+    "run.cmd",
+    "run.sh"
   )
 
   foreach ($file in $files) {

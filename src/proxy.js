@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -522,7 +522,7 @@ function securityHeadersFor(url) {
 }
 
 function authorizeManagementRequest(req, res, config, url) {
-  if (req.method !== 'GET' || !isManagementPath(url.pathname)) return true;
+  if (!isManagementPath(url.pathname)) return true;
   if (config.managementAuthRequired !== true) return true;
 
   if (!config.managementToken) {
@@ -573,10 +573,9 @@ function hasValidManagementToken(headers, expectedToken) {
 
 function tokenMatches(actual, expected) {
   if (!actual || !expected) return false;
-  const actualBuffer = Buffer.from(String(actual));
-  const expectedBuffer = Buffer.from(String(expected));
-  if (actualBuffer.length !== expectedBuffer.length) return false;
-  return timingSafeEqual(actualBuffer, expectedBuffer);
+  const actualHash = createHash('sha256').update(String(actual)).digest();
+  const expectedHash = createHash('sha256').update(String(expected)).digest();
+  return timingSafeEqual(actualHash, expectedHash);
 }
 
 function requestIdFor(req) {

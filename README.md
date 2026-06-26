@@ -5,7 +5,7 @@
   <a href="https://github.com/xodapi/opencode-proxy/blob/main/LICENSE"><img src="https://img.shields.io/github/license/xodapi/opencode-proxy?style=flat-square&logo=github&color=blue" alt="License"></a>
   <img src="https://img.shields.io/badge/node-%3E%3D%2018.0.0-green?style=flat-square&logo=node.js" alt="Node Version">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey?style=flat-square&logo=windows" alt="Platform Support">
-  <img src="https://img.shields.io/badge/tests-87%20passing-brightgreen?style=flat-square&logo=jest" alt="Tests Status">
+  <img src="https://img.shields.io/badge/tests-89%20passing-brightgreen?style=flat-square&logo=jest" alt="Tests Status">
   <img src="https://img.shields.io/badge/code%20style-standard-brightgreen?style=flat-square&logo=javascript" alt="Code Style">
 </p>
 
@@ -24,42 +24,37 @@
 
 - **⚡ Без внешних зависимостей**: Написан исключительно на стандартной библиотеке Node.js (никаких `node_modules` или сложных настроек Python).
 - **🔀 Умная балансировка (Routing)**: Автоматическое переключение моделей по стратегиям `round-robin` (циклический перебор) или `random` (случайный выбор), если запрошенная модель перегружена или недоступна.
-- **⏱️ Адаптивный пинг лимитов (Probing)**: Интеллектуальный фоновый опрос моделей. Если до сброса лимита 429 осталось более 10 минут, частота проверки снижается до 30 минут, предотвращая агрессивный спам апстрима.
-- **📊 Настройка наблюдаемых моделей**: Выбор отображаемых карточек моделей на лету через вкладку настроек дашборда (сохраняется в `localStorage` вашего браузера).
-- **🔔 Десктопные уведомления**: Всплывающие оповещения на рабочем столе, когда заблокированная модель снова становится доступной или при ухудшении здоровья прокси.
+- **⏱️ Exponential Backoff для сбойных моделей**: Интеллектуальный опрос моделей с нарастающим интервалом при ошибках (**20 секунд -> 2 минуты -> 10 минут -> 30 минут**), что устраняет излишний спам апстрима.
+- **⚠️ Исключение 429 ошибок**: Ошибки лимитов (`rate_limited`) больше не считаются критическими сбоями, не портят статус здоровья в `/diag` и отображаются в виде мягкого оранжевого предупреждения на дашборде.
+- **📊 Вкладка «Утилиты» и интерактивный терминал**: Запуск диагностики (`doctor`), проверки здоровья моделей (`model-health`), резервного копирования и других утилит прямо из веб-интерфейса дашборда с выводом логов в терминал.
+- **🔔 Десктопные уведомления**: Всплывающие оповещения на рабочем столе, когда заблокированная модель снова становится доступной.
 - **🛡️ Безопасность и конфиденциальность**: Тексты промптов, ответы моделей, локальные пути проектов, API-ключи и сессии никогда не логируются и не сохраняются на диск.
 
 ---
 
-### 📁 Карта скриптов репозитория (CLI Scripts Map)
+### 📁 Управление скриптами (CLI Management Tool)
 
-В корне репозитория находятся готовые исполняемые файлы автоматизации (`.cmd` для Windows), упрощающие установку, запуск и диагностику:
+Вместо кучи разрозненных `.cmd` файлов в корне репозитория теперь используются единые управляющие скрипты: [run.cmd](run.cmd) (для Windows) и [run.sh](run.sh) (для Linux/macOS).
 
-#### 🚀 Запуск и Установка
-| Скрипт | Описание |
-|---|---|
-| [`.\run-opencode-proxy.cmd`](run-opencode-proxy.cmd) | **Первичная настройка**: Автоматически регистрирует провайдер в OpenCode Desktop и запускает локальный прокси. |
-| [`.\open-opencode.cmd`](open-opencode.cmd) | **Ежедневный лаунчер**: Проверяет, запущен ли прокси (запускает при необходимости) и открывает OpenCode Desktop. |
-| [`.\start-proxy.cmd`](start-proxy.cmd) | **Автономный запуск**: Запускает прокси-сервер в фоновом консольном окне. |
-| [`.\install-opencode.cmd`](install-opencode.cmd) | Отдельный скрипт для интеграции расширения `@ai-sdk/openai-compatible` в OpenCode Desktop. |
+Они принимают следующие команды управления:
 
-#### 🛠️ Инструменты Factory Droid
-| Скрипт | Описание |
-|---|---|
-| [`.\setup-factory-droid.cmd`](setup-factory-droid.cmd) | Прописывает кастомные модели OpenCode Proxy в конфигурационные файлы Factory Droid. |
-| [`.\doctor-factory.cmd`](doctor-factory.cmd) | Диагностика конфигурации Factory Droid, активных миссий и моделей валидации. |
-| [`.\factory-settings-backup.cmd`](factory-settings-backup.cmd) | Создание локальных бэкапов и откат изменений в конфигурационных файлах Factory Droid. |
-| [`.\update-vibemode-factory.cmd`](update-vibemode-factory.cmd) | Миграция устаревших конфигураций NeuroGate на новый URL-адрес VibeMode. |
-
-#### 🩺 Диагностика и Аналитика
-| Скрипт | Описание |
-|---|---|
-| [`.\doctor.cmd`](doctor.cmd) | Проверка окружения Node.js, синтаксиса конфигурации OpenCode, доступности сети и эндпоинтов прокси. |
-| [`.\model-health.cmd`](model-health.cmd) | Сканирование реального статуса доступности и ошибок всех бесплатных моделей в пуле. |
-| [`.\proxy-status.cmd`](proxy-status.cmd) | Вывод компактной сводки метрик работы прокси (запросы, лимиты, задержки) прямо в терминал. |
-| [`.\cleanup-usage.cmd`](cleanup-usage.cmd) | Очистка истории использования и файлов базы данных `usage.jsonl`. |
-| [`.\secret-scan.cmd`](secret-scan.cmd) | Проверка локальных файлов на утечку API-ключей, токенов или персональных данных. |
-| [`.\build-release.cmd`](build-release.cmd) | Сборка чистого ZIP-архива исходных кодов релиза. |
+| Команда | Эквивалент в npm | Описание |
+|---|---|---|
+| `.\run.cmd start` | `npm start` | **Запуск прокси**: Запуск локального сервера. |
+| `.\run.cmd dev` | `npm run dev` | Запуск прокси в режиме разработки с автоматическим перезапуском при изменениях. |
+| `.\run.cmd doctor` | `npm run doctor` | **Диагностика**: Проверка окружения, синтаксиса конфигурации, доступности сети и эндпоинтов. |
+| `.\run.cmd doctor-factory`| `npm run doctor:factory`| Диагностика конфигурации Factory Droid, активных миссий и моделей валидации. |
+| `.\run.cmd health` | `npm run model-health` | Сканирование статуса доступности и ошибок всех бесплатных моделей в пуле. |
+| `.\run.cmd status` | `npm run proxy-status` | Вывод компактной текстовой сводки метрик работы прокси прямо в терминал. |
+| `.\run.cmd backup` | `npm run factory:backup` | Создание локальных бэкапов и откат изменений в конфигурационных файлах Factory Droid. |
+| `.\run.cmd setup` | `npm run setup:opencode` | Первичная регистрация локального провайдера в OpenCode Desktop. |
+| `.\run.cmd setup-factory` | `npm run setup:factory` | Прописывание кастомных моделей OpenCode Proxy в конфигурационные файлы Factory Droid. |
+| `.\run.cmd setup-vibemode`| `npm run setup:vibemode`| Обновление и миграция старых конфигураций NeuroGate на новый URL VibeMode. |
+| `.\run.cmd open` | — | Запуск OpenCode Desktop с автоматической проверкой активности прокси. |
+| `.\run.cmd scan` | `npm run secret-scan` | Проверка файлов проекта на утечки ключей или секретов. |
+| `.\run.cmd cleanup` | `npm run cleanup:usage` | Очистка истории использования и файлов базы данных `usage.jsonl`. |
+| `.\run.cmd build` | `npm run release:zip` | Сборка чистого ZIP-архива исходных кодов релиза. |
+| `.\run.cmd test` | `npm test` | Запуск тестовой сюиты проекта. |
 
 ---
 
@@ -70,14 +65,14 @@
 3. Скачайте или клонируйте этот репозиторий.
 4. Откройте PowerShell в папке проекта и запустите первоначальную настройку:
    ```powershell
-   .\run-opencode-proxy.cmd
+   .\run.cmd setup
    ```
-   Скрипт автоматически пропишет новый локальный провайдер в конфиг OpenCode Desktop и запустит прокси.
+   Скрипт автоматически пропишет новый локальный провайдер в конфиг OpenCode Desktop.
 5. Перезапустите OpenCode Desktop и выберите в моделях провайдер `Local Zen Proxy`.
 
 Для ежедневного использования запускайте прокси и редактор одной командой:
 ```powershell
-.\open-opencode.cmd
+.\run.cmd open
 ```
 
 Панель мониторинга (Dashboard) доступна по адресу:  
@@ -91,16 +86,16 @@
 
 1. Запустите прокси:
    ```powershell
-   .\start-proxy.cmd
+   .\run.cmd start
    ```
 2. Выполните скрипт автонастройки:
    ```powershell
-   .\setup-factory-droid.cmd
+   .\run.cmd setup-factory
    ```
    Скрипт обновит конфигурации в `%USERPROFILE%\.factory\` и пропишет модели с суффиксом `[OpenCode Proxy]`.
 3. Для проверки интеграции с Factory Droid запустите диагностику:
    ```powershell
-   .\doctor-factory.cmd
+   .\run.cmd doctor-factory
    ```
 
 ---
@@ -132,13 +127,13 @@
 #### Запуск автотестов
 Запуск тестов на встроенном Node.js Test Runner:
 ```bash
-npm test
+.\run.cmd test
 ```
 
 #### Проверки качества кода
 Запуск сканера секретов и проверка форматирования:
 ```powershell
-npm run secret-scan
+.\run.cmd scan
 git diff --check
 ```
 
@@ -146,7 +141,7 @@ git diff --check
 
 ## 🇬🇧 English User Guide
 
-**OpenCode Proxy** is a lightweight, zero-dependency, OpenAI-compatible local proxy for the OpenCode Zen free models pool. It listens on `127.0.0.1:3000` by default and exposes an OpenAI-compatible endpoint. This enables **OpenCode Desktop** and **Factory Droid** to utilize a small, free model pool via custom provider settings.
+**OpenCode Proxy** is a lightweight, zero-dependency, OpenAI-compatible local proxy for the OpenCode Zen free models pool. It listens on `127.0.0.1:3000` by default and exposes an OpenAI-compatible endpoint.
 
 ---
 
@@ -154,34 +149,36 @@ git diff --check
 
 - **⚡ Zero External Dependencies**: Powered entirely by the Node.js standard library.
 - **🔀 Smart Routing**: Auto-fallbacks via `round-robin` or `random` strategies if a requested model is throttled or offline.
-- **⏱️ Adaptive Probing**: Automatically pings throttled models. If a rate-limit reset is more than 10 minutes away, the probe interval decreases to 30 minutes.
-- **📊 Dashboard Customization**: Toggle visible models on the dashboard cards via browser-side settings (saved in `localStorage`).
-- **🔔 Desktop Notifications**: Local desktop alerts trigger whenever a rate-limited model becomes available or proxy health degrades.
+- **⏱️ Exponential Backoff Probing**: Intelligently pings throttled models with backoff intervals (**20s -> 2m -> 10m -> 30m**), preventing upstream spam.
+- **⚠️ Exclude 429 Errors from Critical Failures**: Rate limits do not flag critical health failures. They show up as soft warnings on the dashboard.
+- **📊 Embedded Terminal & Tools Tab**: Run doctor diagnostics, model health checks, and backups directly from the web dashboard.
 - **🛡️ Privacy-Preserving**: Prompts, responses, local file paths, API keys, and session IDs are never saved to disk.
 
 ---
 
-### 📁 CLI Script Directory
+### 📁 CLI Management Tool
 
-#### 🚀 Launchers & Installers
-- [`.\run-opencode-proxy.cmd`](run-opencode-proxy.cmd) — **First-Time Setup**: Configures OpenCode Desktop and boots up the local proxy.
-- [`.\open-opencode.cmd`](open-opencode.cmd) — **Daily Launcher**: Verifies if the proxy is running and opens OpenCode Desktop.
-- [`.\start-proxy.cmd`](start-proxy.cmd) — **Autonomous Run**: Starts the proxy standalone in a background/console window.
-- [`.\install-opencode.cmd`](install-opencode.cmd) — Automated script to install `@ai-sdk/openai-compatible` extensions to OpenCode Desktop.
+Instead of many individual files in the root directory, there are unified scripts: [run.cmd](run.cmd) (for Windows) and [run.sh](run.sh) (for Linux/macOS).
 
-#### 🛠️ Factory Droid Tools
-- [`.\setup-factory-droid.cmd`](setup-factory-droid.cmd) — Configures custom OpenCode models inside the Factory Droid settings folder.
-- [`.\doctor-factory.cmd`](doctor-factory.cmd) — Validates Factory Droid settings, active missions, and validation models.
-- [`.\factory-settings-backup.cmd`](factory-settings-backup.cmd) — Creates local settings backups/rollbacks for Factory Droid configuration files.
-- [`.\update-vibemode-factory.cmd`](update-vibemode-factory.cmd) — Migrates legacy NeuroGate configurations to the new VibeMode endpoint.
+They support the following commands:
 
-#### 🩺 Diagnostics & Utilities
-- [`.\doctor.cmd`](doctor.cmd) — Runs checkups on Node.js, OpenCode config syntax, health checks, and models.
-- [`.\model-health.cmd`](model-health.cmd) — Verifies the real-time availability of all upstream free models.
-- [`.\proxy-status.cmd`](proxy-status.cmd) — Prints a compact CLI summary of requests, active rate limits, and latency.
-- [`.\cleanup-usage.cmd`](cleanup-usage.cmd) — Prunes local RAM-logs or `usage.jsonl` database files.
-- [`.\secret-scan.cmd`](secret-scan.cmd) — Audits files for raw API keys, passwords, or configuration secrets.
-- [`.\build-release.cmd`](build-release.cmd) — Builds a source-only clean release `.zip` bundle.
+| Command | npm script | Description |
+|---|---|---|
+| `.\run.cmd start` | `npm start` | **Start Proxy**: Launches the local proxy server. |
+| `.\run.cmd dev` | `npm run dev` | Runs the proxy in development watch-mode. |
+| `.\run.cmd doctor` | `npm run doctor` | **Diagnostics**: Checks Node.js environment, config syntax, and endpoint access. |
+| `.\run.cmd doctor-factory`| `npm run doctor:factory`| Checks Factory Droid settings, active missions, and validation models. |
+| `.\run.cmd health` | `npm run model-health` | Verifies real-time status and errors of all free models in the pool. |
+| `.\run.cmd status` | `npm run proxy-status` | Prints a compact CLI summary of requests, limits, and latency. |
+| `.\run.cmd backup` | `npm run factory:backup` | Backs up or restores configuration files for Factory Droid. |
+| `.\run.cmd setup` | `npm run setup:opencode` | Registers the local provider inside OpenCode Desktop. |
+| `.\run.cmd setup-factory` | `npm run setup:factory` | Configures custom models inside Factory Droid's directory. |
+| `.\run.cmd setup-vibemode`| `npm run setup:vibemode`| Migrates legacy configurations to the VibeMode endpoint. |
+| `.\run.cmd open` | — | Launches OpenCode Desktop and verifies proxy activity. |
+| `.\run.cmd scan` | `npm run secret-scan` | Audits files for raw API keys or passwords. |
+| `.\run.cmd cleanup` | `npm run cleanup:usage` | Cleans up usage stats and local `usage.jsonl` database files. |
+| `.\run.cmd build` | `npm run release:zip` | Packages a clean source-only release `.zip` bundle. |
+| `.\run.cmd test` | `npm test` | Runs the Node.js test suite. |
 
 ---
 
@@ -192,13 +189,13 @@ git diff --check
 3. Download or clone this repository.
 4. Run the first-time setup in PowerShell:
    ```powershell
-   .\run-opencode-proxy.cmd
+   .\run.cmd setup
    ```
 5. Restart OpenCode Desktop and select `Local Zen Proxy`.
 
 Daily launcher command:
 ```powershell
-.\open-opencode.cmd
+.\run.cmd open
 ```
 
 Dashboard URL:  
@@ -210,15 +207,15 @@ Dashboard URL:
 
 1. Start the proxy:
    ```powershell
-   .\start-proxy.cmd
+   .\run.cmd start
    ```
 2. Configure Factory settings:
    ```powershell
-   .\setup-factory-droid.cmd
+   .\run.cmd setup-factory
    ```
 3. Run verification:
    ```powershell
-   .\doctor-factory.cmd
+   .\run.cmd doctor-factory
    ```
 
 ---
@@ -247,12 +244,12 @@ Dashboard URL:
 
 #### Run Tests
 ```bash
-npm test
+.\run.cmd test
 ```
 
 #### Run Checks
 ```powershell
-npm run secret-scan
+.\run.cmd scan
 git diff --check
 ```
 

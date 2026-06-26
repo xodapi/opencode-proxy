@@ -22,12 +22,15 @@ if "%CMD_ARG%"=="" (
   echo   setup-vibemode - Update legacy configurations (setup:vibemode)
   echo   backup         - Backup/restore Factory configurations (factory:backup)
   echo   cleanup        - Clean up older usage history log files (cleanup:usage)
+  echo   open           - Launch OpenCode Desktop and make sure proxy is running
   echo   test           - Run project unit testing suite
   echo.
   exit /b 0
 )
 
-if "%CMD_ARG%"=="start" (
+if "%CMD_ARG%"=="open" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\open-opencode.ps1" %2 %3 %4 %5 %6 %7 %8 %9
+) else if "%CMD_ARG%"=="start" (
   npm start %2 %3 %4 %5 %6 %7 %8 %9
 ) else if "%CMD_ARG%"=="dev" (
   npm run dev %2 %3 %4 %5 %6 %7 %8 %9
