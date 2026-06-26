@@ -9,7 +9,7 @@ function getChartColor(index) {
   return 'hsl(' + hue + ', 70%, 60%)';
 }
 
-function renderDashboard() {
+function renderDashboard(version) {
   return `<!doctype html>
 <html lang="ru" data-theme="dark">
 <head>
@@ -53,6 +53,7 @@ function renderDashboard() {
       --chart-grid: rgba(255,255,255,.04);
       --chart-text: #9ca3af;
       --glow: 0 0 20px rgba(99,102,241,.15);
+      --sidebar-bg: rgba(22, 24, 34, 0.7);
     }
 
     [data-theme="light"] {
@@ -80,6 +81,7 @@ function renderDashboard() {
       --chart-grid: rgba(0,0,0,.05);
       --chart-text: #64748b;
       --glow: none;
+      --sidebar-bg: rgba(255, 255, 255, 0.75);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -93,14 +95,139 @@ function renderDashboard() {
       min-height: 100vh;
     }
 
-    .container { max-width: 1440px; margin: 0 auto; padding: 24px; }
+    /* App Layout */
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+    }
 
-    header {
+    /* Sidebar Styles */
+    .sidebar {
+      width: 260px;
+      background: var(--sidebar-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+      transition: var(--transition);
+    }
+
+    .sidebar-brand {
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo {
+      width: 32px;
+      height: 32px;
+      color: var(--accent);
+      filter: drop-shadow(0 0 8px rgba(99,102,241,.3));
+    }
+
+    .sidebar-brand-text h2 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--text-primary);
+    }
+
+    .sidebar-brand-text span {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-nav {
+      padding: 20px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-grow: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      transition: all var(--transition);
+      font-family: var(--font);
+    }
+
+    .nav-item:hover {
+      color: var(--text-primary);
+      background: var(--bg-card-hover);
+    }
+
+    .nav-item.active {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .nav-item svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .sidebar-footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+
+    .sidebar-footer a:hover {
+      color: var(--text-primary);
+    }
+
+    /* Main Content Area */
+    .main-content {
+      margin-left: 260px;
+      padding: 24px 32px;
+      flex-grow: 1;
+      width: calc(100% - 260px);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: var(--transition);
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       gap: 16px;
-      margin-bottom: 28px;
       flex-wrap: wrap;
     }
 
@@ -178,11 +305,54 @@ function renderDashboard() {
     }
     .btn-primary:hover { opacity: .9; border-color: var(--accent); }
 
+    .btn-sm {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+
+    /* Health Banner */
+    .banner-summary {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .banner-details {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: rgba(0,0,0,0.15);
+      border-radius: var(--radius-sm);
+      width: 100%;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .banner-error-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-secondary);
+    }
+
+    .banner-error-row strong {
+      color: var(--text-primary);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
     .stat-row {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       gap: 12px;
-      margin-bottom: 24px;
     }
 
     .stat-card {
@@ -251,11 +421,11 @@ function renderDashboard() {
       margin-top: 6px;
     }
 
+    /* Charts & Donuts */
     .charts-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 16px;
-      margin-bottom: 24px;
     }
 
     .chart-card {
@@ -332,7 +502,6 @@ function renderDashboard() {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
-      margin-bottom: 24px;
     }
 
     .donut-card {
@@ -395,11 +564,11 @@ function renderDashboard() {
       flex-shrink: 0;
     }
 
+    /* Model Grid */
     .model-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      margin-bottom: 24px;
     }
 
     .model-card {
@@ -496,13 +665,13 @@ function renderDashboard() {
     .model-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
     .model-stat-value { font-size: 13px; font-weight: 600; }
 
-    .section { margin-bottom: 24px; }
+    /* Sections & Tables */
+    .section { display: flex; flex-direction: column; gap: 12px; }
 
     .section-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
     }
 
     .section-title {
@@ -548,7 +717,6 @@ function renderDashboard() {
     .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; }
 
     .privacy-note {
-      margin-top: 16px;
       padding: 12px 16px;
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -564,16 +732,105 @@ function renderDashboard() {
       font-size: 13px;
     }
 
+    /* Settings View */
+    .settings-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .models-checkbox-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition);
+      user-select: none;
+    }
+
+    .checkbox-item:hover {
+      border-color: var(--border-hover);
+      background: var(--bg-card-hover);
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .checkbox-item-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .checkbox-model-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .checkbox-model-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Adaptive Design & Media Queries */
     @media (max-width: 1200px) {
       .model-grid { grid-template-columns: repeat(2, 1fr); }
       .stat-row { grid-template-columns: repeat(3, 1fr); }
       .donuts-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
+    @media (max-width: 992px) {
+      .sidebar {
+        width: 70px;
+      }
+      .sidebar-brand-text, .sidebar-footer span, .nav-item span {
+        display: none;
+      }
+      .sidebar-brand {
+        padding: 16px;
+        justify-content: center;
+      }
+      .sidebar-nav {
+        padding: 16px 8px;
+      }
+      .nav-item {
+        padding: 12px;
+        justify-content: center;
+      }
+      .sidebar-footer {
+        padding: 16px;
+        justify-content: center;
+      }
+      .sidebar-footer a {
+        display: none;
+      }
+      .main-content {
+        margin-left: 70px;
+        width: calc(100% - 70px);
+        padding: 20px;
+      }
+    }
+
     @media (max-width: 768px) {
-      .container { padding: 16px; }
-      header { flex-direction: column; }
-      .brand h1 { font-size: 22px; }
       .stat-row { grid-template-columns: 1fr 1fr; }
       .charts-grid { grid-template-columns: 1fr; }
       .chart-card.wide { grid-column: span 1; }
@@ -583,8 +840,52 @@ function renderDashboard() {
       th, td { white-space: nowrap; }
     }
 
+    @media (max-width: 576px) {
+      .sidebar {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 60px;
+        flex-direction: row;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        padding: 0;
+        background: rgba(22, 24, 34, 0.85);
+        border-radius: 0;
+      }
+      .sidebar-brand {
+        display: none;
+      }
+      .sidebar-nav {
+        flex-direction: row;
+        justify-content: space-around;
+        padding: 0;
+        width: 100%;
+        gap: 0;
+        align-items: center;
+      }
+      .nav-item {
+        flex: 1;
+        height: 100%;
+        border-radius: 0;
+        justify-content: center;
+        padding: 0;
+      }
+      .sidebar-footer {
+        display: none;
+      }
+      .main-content {
+        margin-left: 0;
+        margin-bottom: 60px;
+        width: 100%;
+        padding: 16px;
+      }
+    }
+
     @media (prefers-reduced-motion: no-preference) {
-      body, .stat-card, .chart-card, .donut-card, .table-card, .btn, .status-pill, .empty-state, .privacy-note {
+      body, .stat-card, .chart-card, .donut-card, .table-card, .btn, .status-pill, .empty-state, .privacy-note, .checkbox-item {
         transition: background-color .2s, color .2s, border-color .2s;
       }
     }
@@ -601,211 +902,272 @@ function renderDashboard() {
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="brand">
-        <h1>OpenCode Proxy</h1>
-        <p>Мониторинг моделей, токенов и производительности</p>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <svg class="sidebar-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <div class="sidebar-brand-text">
+          <h2>OpenCode</h2>
+          <span>Proxy Control</span>
+        </div>
       </div>
-      <div class="header-actions">
-        <div class="status-pill" id="status" role="status" aria-live="polite"><span class="status-dot"></span> Загрузка...</div>
-        <a class="btn" href="/export/usage.csv?days=7" download title="Скачать статистику CSV">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          CSV
-        </a>
-        <a class="btn" href="/export/usage.json?days=7" download title="Скачать статистику JSON">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 13h4"/><path d="M10 17h4"/></svg>
-          JSON
-        </a>
-        <button class="btn btn-icon-only" id="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">
-          <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" id="tabBtnDashboard" data-tab="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          <span>Дашборд</span>
         </button>
-        <button class="btn btn-primary" id="refresh" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-          Обновить
+        <button class="nav-item" id="tabBtnSettings" data-tab="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Настройки</span>
         </button>
+        <a class="nav-item" href="/flow" target="_blank">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Потоки (Flow)</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="app-version">v${version}</span>
+        <a href="https://github.com/ArtemPotapov52/opencode-proxy" target="_blank" rel="noopener">GitHub</a>
       </div>
-    </header>
+    </aside>
 
-    <div class="stat-row">
-      <div class="stat-card">
-        <div class="stat-card-top">
-          <div class="stat-label">Запросы (5 мин)</div>
-          <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-3 3 2 5-6"/></svg></div>
+    <main class="main-content">
+      <header class="app-header">
+        <div class="brand">
+          <h1 id="pageTitle">OpenCode Proxy</h1>
+          <p id="pageSubtitle">Мониторинг моделей, токенов и производительности</p>
         </div>
-        <div class="stat-value" id="requests">0</div>
-        <div class="stat-sub" id="rpm">0 rpm</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-top">
-          <div class="stat-label">Токены сегодня</div>
-          <div class="stat-icon tokens"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="header-actions">
+          <div class="status-pill" id="status" role="status" aria-live="polite"><span class="status-dot"></span> Загрузка...</div>
+          <a class="btn" href="/export/usage.csv?days=7" download title="Скачать статистику CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            CSV
+          </a>
+          <a class="btn" href="/export/usage.json?days=7" download title="Скачать статистику JSON">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 13h4"/><path d="M10 17h4"/></svg>
+            JSON
+          </a>
+          <button class="btn btn-icon-only" id="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">
+            <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+          </button>
+          <button class="btn btn-primary" id="refresh" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Обновить
+          </button>
         </div>
-        <div class="stat-value" id="tpm">0</div>
-        <div class="stat-sub" id="tokens">0 токенов</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-top">
-          <div class="stat-label">Задержка</div>
-          <div class="stat-icon latency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
-        </div>
-        <div class="stat-value" id="latency">0мс</div>
-        <div class="stat-sub" id="maxLatency">max 0мс</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-top">
-          <div class="stat-label">Ошибки (5 мин)</div>
-          <div class="stat-icon errors"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
-        </div>
-        <div class="stat-value" id="errors">0</div>
-        <div class="stat-sub" id="success">0 ok</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-top">
-          <div class="stat-label">Стоимость</div>
-          <div class="stat-icon cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        </div>
-        <div class="stat-value" id="cost">0</div>
-        <div class="stat-sub" id="costToday">$ за сегодня</div>
-      </div>
-    </div>
+      </header>
 
-    <div class="charts-grid">
-      <div class="chart-card wide">
-        <div class="chart-header">
-          <div>
-            <div class="chart-title-row">
-              <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-7"/></svg></div>
+      <div id="healthBanner" style="display:none;padding:12px 20px;font-size:13px;align-items:center;gap:12px;border-radius:var(--radius);margin-bottom:20px;flex-direction:column;align-items:flex-start"></div>
+
+      <!-- Вкладка Дашборда -->
+      <div class="tab-content" id="tabDashboard">
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <div class="stat-label">Запросы (5 мин)</div>
+              <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-3 3 2 5-6"/></svg></div>
+            </div>
+            <div class="stat-value" id="requests">0</div>
+            <div class="stat-sub" id="rpm">0 rpm</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <div class="stat-label">Токены сегодня</div>
+              <div class="stat-icon tokens"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            </div>
+            <div class="stat-value" id="tpm">0</div>
+            <div class="stat-sub" id="tokens">0 токенов</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <div class="stat-label">Задержка</div>
+              <div class="stat-icon latency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
+            </div>
+            <div class="stat-value" id="latency">0мс</div>
+            <div class="stat-sub" id="maxLatency">max 0мс</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <div class="stat-label">Ошибки (5 мин)</div>
+              <div class="stat-icon errors"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+            </div>
+            <div class="stat-value" id="errors">0</div>
+            <div class="stat-sub" id="success">0 ok</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <div class="stat-label">Стоимость</div>
+              <div class="stat-icon cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            </div>
+            <div class="stat-value" id="cost">0</div>
+            <div class="stat-sub" id="costToday">$ за сегодня</div>
+          </div>
+        </div>
+
+        <!-- Модели -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Наблюдаемые модели</div>
+          </div>
+          <div class="model-grid" id="modelCards"></div>
+        </div>
+
+        <!-- Лимиты API -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Лимиты API</div>
+          </div>
+          <div class="table-card">
+            <table>
+              <caption style="display:none">Лимиты API по моделям</caption>
+              <thead><tr><th scope="col">Модель</th><th scope="col">Статус</th><th scope="col">Остаток</th><th scope="col">Сброс</th><th scope="col" class="right">Ждать</th><th scope="col">Ошибка</th></tr></thead>
+              <tbody id="limits"><tr><td colspan="6" class="empty-state">Активных лимитов пока нет</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Последние запросы -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Последние запросы</div>
+          </div>
+          <div class="table-card">
+            <table aria-label="Последние запросы">
+              <caption style="display:none">Последние запросы</caption>
+              <thead><tr><th scope="col">Время</th><th scope="col">Модель</th><th scope="col">Статус</th><th scope="col" class="right">Задержка</th><th scope="col" class="right">Токены</th><th scope="col" class="right">Prompt</th><th scope="col" class="right">Completion</th><th scope="col">Финиш</th></tr></thead>
+              <tbody id="recent"><tr><td colspan="8" class="empty-state">Запросов пока нет</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Графики активности и задержки -->
+        <div class="charts-grid">
+          <div class="chart-card wide">
+            <div class="chart-header">
               <div>
-                <div class="chart-title">Активность</div>
-                <div class="chart-subtitle">Нагрузка по минутам: запросы, OK/ошибки или токены</div>
+                <div class="chart-title-row">
+                  <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-7"/></svg></div>
+                  <div>
+                    <div class="chart-title">Активность</div>
+                    <div class="chart-subtitle">Нагрузка по минутам: запросы, OK/ошибки или токены</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-tabs" id="activityTabs" role="tablist">
+                <button class="chart-tab active" data-metric="requests" role="tab" aria-selected="true">Запросы</button>
+                <button class="chart-tab" data-metric="tokens" role="tab" aria-selected="false">Токены</button>
               </div>
             </div>
+            <div class="chart-wrap"><canvas id="activityChart" aria-label="График активности: запросы и токены по минутам"></canvas></div>
           </div>
-          <div class="chart-tabs" id="activityTabs" role="tablist">
-            <button class="chart-tab active" data-metric="requests" role="tab" aria-selected="true">Запросы</button>
-            <button class="chart-tab" data-metric="tokens" role="tab" aria-selected="false">Токены</button>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title-row">
+                  <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
+                  <div>
+                    <div class="chart-title">Задержка</div>
+                    <div class="chart-subtitle">Средняя линия и пиковые ответы upstream</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="latencyChart" aria-label="График задержки: средняя и максимальная в мс"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title-row">
+                  <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16"/><path d="M7 16V8"/><path d="M12 16V4"/><path d="M17 16v-6"/></svg></div>
+                  <div>
+                    <div class="chart-title">Стоимость</div>
+                    <div class="chart-subtitle">Cost из upstream: по минутам и накопительно</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="costChart" aria-label="График стоимости по минутам"></canvas></div>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="activityChart" aria-label="График активности: запросы и токены по минутам"></canvas></div>
+
+        <!-- Круговые диаграммы -->
+        <div class="donuts-grid">
+          <div class="donut-card">
+            <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Распределение по моделям</div>
+            <div class="donut-wrap"><canvas id="modelDonut" aria-label="Круговая диаграмма: распределение запросов по моделям"></canvas>
+              <div class="donut-center"><div class="donut-center-value" id="modelDonutTotal">0</div><div class="donut-center-label">запр.</div></div>
+            </div>
+            <div class="donut-legend" id="modelLegend"></div>
+          </div>
+          <div class="donut-card">
+            <div class="chart-title" style="margin-bottom:12px">Prompt vs Completion</div>
+            <div class="donut-wrap"><canvas id="tokenDonut" aria-label="Круговая диаграмма: prompt против completion токенов"></canvas>
+              <div class="donut-center"><div class="donut-center-value" id="tokenDonutTotal">0</div><div class="donut-center-label">токенов</div></div>
+            </div>
+            <div class="donut-legend" id="tokenLegend"></div>
+          </div>
+          <div class="donut-card">
+            <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span>Успешность</div>
+            <div class="donut-wrap"><canvas id="successDonut" aria-label="Круговая диаграмма: успешные запросы, ошибки и лимиты"></canvas>
+              <div class="donut-center"><div class="donut-center-value" id="successDonutTotal">0%</div><div class="donut-center-label">ok rate</div></div>
+            </div>
+            <div class="donut-legend" id="successLegend"></div>
+          </div>
+        </div>
+
+        <!-- Расход сегодня -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Расход сегодня</div>
+          </div>
+          <div class="table-card">
+            <table aria-label="Расход по моделям сегодня">
+              <caption style="display:none">Расход по моделям сегодня</caption>
+              <thead><tr><th scope="col">Модель</th><th scope="col" class="right">Запр.</th><th scope="col" class="right ok">OK</th><th scope="col" class="right fail">Ошибки</th><th scope="col" class="right">Токены</th><th scope="col" class="right">Prompt</th><th scope="col" class="right">Completion</th><th scope="col" class="right">429</th><th scope="col" class="right">мс</th><th scope="col" class="right">Cost</th></tr></thead>
+              <tbody id="todayModels"><tr><td colspan="10" class="empty-state">Запросов сегодня ещё нет</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- По дням -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">По дням</div>
+          </div>
+          <div class="table-card">
+            <table aria-label="Расход по дням">
+              <caption style="display:none">Расход по дням</caption>
+              <thead><tr><th scope="col">День</th><th scope="col" class="right">Запр.</th><th scope="col" class="right ok">OK</th><th scope="col" class="right fail">Ошибки</th><th scope="col" class="right">Токены</th><th scope="col" class="right">429</th><th scope="col" class="right">Cost</th></tr></thead>
+              <tbody id="dailyUsage"><tr><td colspan="7" class="empty-state">Истории пока нет</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-header">
-          <div>
-            <div class="chart-title-row">
-              <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
-              <div>
-                <div class="chart-title">Задержка</div>
-                <div class="chart-subtitle">Средняя линия и пиковые ответы upstream</div>
+
+      <!-- Вкладка Настроек -->
+      <div class="tab-content" id="tabSettings" style="display:none">
+        <div class="section">
+          <div class="settings-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+              <div style="font-weight:600; font-size:15px">Наблюдаемые модели на дашборде</div>
+              <div style="display:flex; gap:8px">
+                <button class="btn btn-sm" id="selectAllModels" type="button">Выбрать все</button>
+                <button class="btn btn-sm" id="selectNoneModels" type="button">Сбросить</button>
               </div>
+            </div>
+            <div class="models-checkbox-list" id="modelsCheckboxList">
+              <div class="empty-state">Загрузка моделей...</div>
             </div>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="latencyChart" aria-label="График задержки: средняя и максимальная в мс"></canvas></div>
       </div>
-      <div class="chart-card">
-        <div class="chart-header">
-          <div>
-            <div class="chart-title-row">
-              <div class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16"/><path d="M7 16V8"/><path d="M12 16V4"/><path d="M17 16v-6"/></svg></div>
-              <div>
-                <div class="chart-title">Стоимость</div>
-                <div class="chart-subtitle">Cost из upstream: по минутам и накопительно</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="chart-wrap"><canvas id="costChart" aria-label="График стоимости по минутам"></canvas></div>
-      </div>
-    </div>
 
-    <div class="donuts-grid">
-      <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Распределение по моделям</div>
-        <div class="donut-wrap"><canvas id="modelDonut" aria-label="Круговая диаграмма: распределение запросов по моделям"></canvas>
-          <div class="donut-center"><div class="donut-center-value" id="modelDonutTotal">0</div><div class="donut-center-label">запр.</div></div>
-        </div>
-        <div class="donut-legend" id="modelLegend"></div>
-      </div>
-      <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px">Prompt vs Completion</div>
-        <div class="donut-wrap"><canvas id="tokenDonut" aria-label="Круговая диаграмма: prompt против completion токенов"></canvas>
-          <div class="donut-center"><div class="donut-center-value" id="tokenDonutTotal">0</div><div class="donut-center-label">токенов</div></div>
-        </div>
-        <div class="donut-legend" id="tokenLegend"></div>
-      </div>
-      <div class="donut-card">
-        <div class="chart-title" style="margin-bottom:12px;justify-content:center"><span class="chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span>Успешность</div>
-        <div class="donut-wrap"><canvas id="successDonut" aria-label="Круговая диаграмма: успешные запросы, ошибки и лимиты"></canvas>
-          <div class="donut-center"><div class="donut-center-value" id="successDonutTotal">0%</div><div class="donut-center-label">ok rate</div></div>
-        </div>
-        <div class="donut-legend" id="successLegend"></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">
-        <div class="section-title">Модели</div>
-      </div>
-      <div class="model-grid" id="modelCards"></div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">
-        <div class="section-title">Лимиты API</div>
-      </div>
-      <div class="table-card">
-        <table>
-          <caption style="display:none">Лимиты API по моделям</caption>
-          <thead><tr><th scope="col">Модель</th><th scope="col">Статус</th><th scope="col">Остаток</th><th scope="col">Сброс</th><th scope="col" class="right">Ждать</th><th scope="col">Ошибка</th></tr></thead>
-          <tbody id="limits"><tr><td colspan="6" class="empty-state">Активных лимитов пока нет</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">
-        <div class="section-title">Расход сегодня</div>
-      </div>
-      <div class="table-card">
-        <table aria-label="Расход по моделям сегодня">
-          <caption style="display:none">Расход по моделям сегодня</caption>
-          <thead><tr><th scope="col">Модель</th><th scope="col" class="right">Запр.</th><th scope="col" class="right ok">OK</th><th scope="col" class="right fail">Ошибки</th><th scope="col" class="right">Токены</th><th scope="col" class="right">Prompt</th><th scope="col" class="right">Completion</th><th scope="col" class="right">429</th><th scope="col" class="right">мс</th><th scope="col" class="right">Cost</th></tr></thead>
-          <tbody id="todayModels"><tr><td colspan="10" class="empty-state">Запросов сегодня ещё нет</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">
-        <div class="section-title">По дням</div>
-      </div>
-      <div class="table-card">
-        <table aria-label="Расход по дням">
-          <caption style="display:none">Расход по дням</caption>
-          <thead><tr><th scope="col">День</th><th scope="col" class="right">Запр.</th><th scope="col" class="right ok">OK</th><th scope="col" class="right fail">Ошибки</th><th scope="col" class="right">Токены</th><th scope="col" class="right">429</th><th scope="col" class="right">Cost</th></tr></thead>
-          <tbody id="dailyUsage"><tr><td colspan="7" class="empty-state">Истории пока нет</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">
-        <div class="section-title">Последние запросы</div>
-      </div>
-      <div class="table-card">
-        <table aria-label="Последние запросы">
-          <caption style="display:none">Последние запросы</caption>
-          <thead><tr><th scope="col">Время</th><th scope="col">Модель</th><th scope="col">Статус</th><th scope="col" class="right">Задержка</th><th scope="col" class="right">Токены</th><th scope="col" class="right">Prompt</th><th scope="col" class="right">Completion</th><th scope="col">Финиш</th></tr></thead>
-          <tbody id="recent"><tr><td colspan="8" class="empty-state">Запросов пока нет</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="privacy-note" id="privacy"></div>
+      <div class="privacy-note" id="privacy"></div>
+    </main>
   </div>
 
   <script>
+    const VERSION = '${version}';
     const CHART_COLORS = ${JSON.stringify(CHART_COLORS)};
     function getChartColor(index) {
       if (index < CHART_COLORS.length) return CHART_COLORS[index];
@@ -816,6 +1178,126 @@ function renderDashboard() {
     const fmtInt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
     const money = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 });
     const $ = (id) => document.getElementById(id);
+
+    // Tab switcher
+    const tabDashboard = $('tabDashboard');
+    const tabSettings = $('tabSettings');
+    const tabBtnDashboard = $('tabBtnDashboard');
+    const tabBtnSettings = $('tabBtnSettings');
+    const pageTitle = $('pageTitle');
+    const pageSubtitle = $('pageSubtitle');
+
+    function switchTab(tabId) {
+      if (tabId === 'dashboard') {
+        tabDashboard.style.display = 'flex';
+        tabSettings.style.display = 'none';
+        tabBtnDashboard.classList.add('active');
+        tabBtnSettings.classList.remove('active');
+        pageTitle.textContent = 'OpenCode Proxy';
+        pageSubtitle.textContent = 'Мониторинг моделей, токенов и производительности';
+      } else if (tabId === 'settings') {
+        tabDashboard.style.display = 'none';
+        tabSettings.style.display = 'flex';
+        tabBtnDashboard.classList.remove('active');
+        tabBtnSettings.classList.add('active');
+        pageTitle.textContent = 'Настройки';
+        pageSubtitle.textContent = 'Выбор моделей для отображения на дашборде';
+        renderSettingsCheckboxList();
+      }
+    }
+
+    tabBtnDashboard.addEventListener('click', () => switchTab('dashboard'));
+    tabBtnSettings.addEventListener('click', () => switchTab('settings'));
+
+    // Observed Models Logic
+    let allAvailableModels = [];
+    let observedModels = null;
+
+    function loadObservedModels() {
+      try {
+        const saved = localStorage.getItem('oc-observed-models');
+        if (saved) {
+          observedModels = JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error('Failed to load observed models:', e);
+      }
+    }
+
+    function saveObservedModels() {
+      try {
+        localStorage.setItem('oc-observed-models', JSON.stringify(observedModels));
+      } catch (e) {
+        console.error('Failed to save observed models:', e);
+      }
+    }
+
+    function renderSettingsCheckboxList() {
+      const list = $('modelsCheckboxList');
+      if (!list) return;
+      if (!allAvailableModels || allAvailableModels.length === 0) {
+        list.innerHTML = '<div class="empty-state">Список моделей пуст. Подключитесь к прокси.</div>';
+        return;
+      }
+
+      list.innerHTML = allAvailableModels.map((m) => {
+        const isChecked = observedModels && observedModels.includes(m.model);
+        const typeLabel = m.is_primary ? 'Первичная' : 'Вторичная';
+        const badgeClass = m.state || 'untested';
+        return '<label class="checkbox-item">' +
+          '<input type="checkbox" data-model="' + escapeHtml(m.model) + '" ' + (isChecked ? 'checked' : '') + ' />' +
+          '<div class="checkbox-item-label">' +
+            '<span class="checkbox-model-name">' + escapeHtml(m.model) + '</span>' +
+            '<span class="checkbox-model-desc">' + typeLabel + ' · ' + stateLabel(m.state) + '</span>' +
+          '</div>' +
+        '</label>';
+      }).join('');
+
+      list.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+        checkbox.addEventListener('change', (e) => {
+          const modelName = e.target.dataset.model;
+          if (e.target.checked) {
+            if (!observedModels.includes(modelName)) observedModels.push(modelName);
+          } else {
+            observedModels = observedModels.filter(name => name !== modelName);
+          }
+          saveObservedModels();
+          refresh(); // Update dashboard on background
+        });
+      });
+    }
+
+    $('selectAllModels').addEventListener('click', () => {
+      observedModels = allAvailableModels.map(m => m.model);
+      saveObservedModels();
+      renderSettingsCheckboxList();
+      refresh();
+    });
+
+    $('selectNoneModels').addEventListener('click', () => {
+      observedModels = [];
+      saveObservedModels();
+      renderSettingsCheckboxList();
+      refresh();
+    });
+
+    let previousModelStates = {};
+    function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+    document.addEventListener('click', requestNotificationPermission, { once: true });
+
+    function showNotification(title, body) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(title, { body });
+        } catch (e) {
+          console.warn('Failed to show notification:', e);
+        }
+      }
+    }
 
     let activityMode = 'requests';
     let chartInstances = {};
@@ -900,21 +1382,21 @@ function renderDashboard() {
 
     function setText(id, text) { $(id).textContent = text; }
 
-  const CACHE_KEYS = new Map();
+    const CACHE_KEYS = new Map();
 
-  function setInnerCached(id, html, cacheKey) {
-    if (cacheKey != null) {
-      const prev = CACHE_KEYS.get(id);
-      if (prev === cacheKey) return;
-      CACHE_KEYS.set(id, cacheKey);
+    function setInnerCached(id, html, cacheKey) {
+      if (cacheKey != null) {
+        const prev = CACHE_KEYS.get(id);
+        if (prev === cacheKey) return;
+        CACHE_KEYS.set(id, cacheKey);
+      }
+      $(id).innerHTML = html;
     }
-    $(id).innerHTML = html;
-  }
 
-  function withCacheKey(data) {
-    if (!data || typeof data !== 'object') return '';
-    try { return JSON.stringify(data); } catch { return ''; }
-  }
+    function withCacheKey(data) {
+      if (!data || typeof data !== 'object') return '';
+      try { return JSON.stringify(data); } catch { return ''; }
+    }
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -1163,6 +1645,7 @@ function renderDashboard() {
       return 'нет usage';
     }
 
+    // Helper functions for table rendering
     function tokenPartText(item, field) {
       if (!item || !item.requests) return '0';
       if (item.usage_reported || item.usage_estimated) {
@@ -1214,12 +1697,83 @@ function renderDashboard() {
         const today = todayUsage(usage);
         const ts = data.timeseries || [];
 
+        // Save list of all available models
+        allAvailableModels = (data.model_status && data.model_status.all) || [];
+
+        // Initialize observed models if null
+        if (observedModels === null) {
+          loadObservedModels();
+          if (observedModels === null) {
+            // Select all primary models by default
+            observedModels = allAvailableModels.filter(m => m.is_primary).map(m => m.model);
+            saveObservedModels();
+          }
+        }
+
         const pill = $('status');
         pill.classList.remove('error');
         pill.replaceChildren(
           statusDot(),
           document.createTextNode(' ' + new Date(data.generated_at).toLocaleTimeString('ru-RU') + ' · uptime ' + formatDuration(data.uptime_seconds)),
         );
+
+        // Health Banner with detailed error breakdown
+        const healthBanner = $('healthBanner');
+        const failPct = s.requests > 0 ? Math.round(s.fail / s.requests * 100) : 0;
+
+        let errorsHtml = '';
+        if (data.errors && data.errors.length > 0) {
+          const uniqueErrors = [];
+          const seenKeys = new Set();
+          for (const err of data.errors) {
+            const key = err.model + ':' + err.error_type;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              uniqueErrors.push(err);
+            }
+            if (uniqueErrors.length >= 3) break;
+          }
+
+          if (uniqueErrors.length > 0) {
+            errorsHtml = '<div class="banner-details">' +
+              '<div style="font-weight:600; margin-bottom:2px">Последние сбои:</div>' +
+              uniqueErrors.map((err) => {
+                const timeStr = formatTime(err.ts);
+                return '<div class="banner-error-row">' +
+                  '<span><strong>' + escapeHtml(err.model) + '</strong>: ' + escapeHtml(err.error_type) + '</span>' +
+                  '<span class="mono">' + timeStr + '</span>' +
+                '</div>';
+              }).join('') +
+            '</div>';
+          }
+        }
+
+        if (s.fail > s.ok) {
+          healthBanner.style.display = 'flex';
+          healthBanner.style.background = 'var(--bad-bg)';
+          healthBanner.style.color = 'var(--bad)';
+          healthBanner.innerHTML = '<div class="banner-summary">' +
+            '<span>⚠️ Критическая ошибка: ' + fmtInt.format(s.fail) + ' из ' + fmtInt.format(s.requests) + ' (' + failPct + '%)</span>' +
+            '<span style="color:var(--text-secondary);font-size:11px">latency ' + fmtInt.format(s.latency_ms_avg) + 'ms · ' + fmtInt.format(s.latency_ms_max) + 'ms max</span>' +
+          '</div>' + errorsHtml;
+        } else if (failPct > 20) {
+          healthBanner.style.display = 'flex';
+          healthBanner.style.background = 'var(--warn-bg)';
+          healthBanner.style.color = 'var(--warn)';
+          healthBanner.innerHTML = '<div class="banner-summary">' +
+            '<span>⚠️ Ошибок: ' + failPct + '%</span>' +
+            '<span style="color:var(--text-secondary);font-size:11px">' + fmtInt.format(s.ok) + ' OK · ' + fmtInt.format(s.fail) + ' fail · ' + fmtInt.format(s.latency_ms_avg) + 'ms avg</span>' +
+          '</div>' + errorsHtml;
+        } else {
+          healthBanner.style.display = 'flex';
+          healthBanner.style.background = 'var(--good-bg)';
+          healthBanner.style.color = 'var(--good)';
+          healthBanner.innerHTML = '<div class="banner-summary">' +
+            '<span>✅ Система работает стабильно</span>' +
+            '<span style="color:var(--text-secondary);font-size:11px">' + fmtInt.format(s.requests || 0) + ' запр/5мин · ' + fmtInt.format(s.latency_ms_avg || 0) + 'ms avg</span>' +
+          '</div>' + errorsHtml;
+        }
+
         setText('requests', fmtInt.format(s.requests));
         setText('rpm', fmt.format(s.requests_per_minute) + ' rpm · сегодня ' + fmtInt.format(today.requests || 0));
         setText('tpm', tokenText(today));
@@ -1231,9 +1785,34 @@ function renderDashboard() {
         setText('cost', '$' + money.format(today.cost || 0));
         setText('costToday', '$' + money.format(usage.totals?.cost || all.cost || 0) + ' за 7д');
 
-        const primaryModels = (data.model_status && data.model_status.primary) || [];
-        setInnerCached('modelCards', renderRows(primaryModels, '<div class="empty-state">Нет моделей</div>', renderModelCard), withCacheKey(primaryModels));
+        // Filter and render model cards
+        const filteredModels = allAvailableModels.filter(m => observedModels.includes(m.model));
+        setInnerCached('modelCards', renderRows(filteredModels, '<div class="empty-state">Нет моделей. Выберите наблюдаемые модели во вкладке "Настройки".</div>', renderModelCard), withCacheKey(filteredModels));
 
+        // Push desktop notifications
+        if (Object.keys(previousModelStates).length > 0) {
+          allAvailableModels.forEach((m) => {
+            const prevState = previousModelStates[m.model];
+            const currentState = m.state;
+            if (prevState && prevState !== currentState) {
+              if (currentState === 'available' && (prevState === 'limited' || prevState === 'error' || prevState === 'retry')) {
+                showNotification('Модель ' + m.model + ' снова доступна!', 'Статус изменился на "доступна".');
+              } else if (currentState === 'limited' && prevState !== 'limited') {
+                const waitText = m.reset_in_seconds ? ' через ' + formatDuration(m.reset_in_seconds) : '';
+                showNotification('Модель ' + m.model + ' заблокирована (429)!', 'Лимит исчерпан. Ожидаемый сброс' + waitText + '.');
+              } else if (currentState === 'error' && prevState !== 'error') {
+                showNotification('Ошибка на модели ' + m.model + '!', 'Вернулся статус ' + (m.last_status || 'неизвестно') + '.');
+              }
+            }
+            previousModelStates[m.model] = currentState;
+          });
+        } else {
+          allAvailableModels.forEach((m) => {
+            previousModelStates[m.model] = m.state;
+          });
+        }
+
+        // Render limits table
         setInnerCached('limits', renderRows(data.limits, '<tr><td colspan="6" class="empty-state">Активных лимитов нет</td></tr>', (limit) => {
           const reset = limit.reset_at ? new Date(limit.reset_at).toLocaleString('ru-RU') : '—';
           const wait = limit.reset_in_seconds == null ? '—' : formatDuration(limit.reset_in_seconds);
@@ -1241,22 +1820,26 @@ function renderDashboard() {
           return '<tr><td>' + escapeHtml(limit.model) + '</td><td class="' + (limit.limited ? 'fail' : 'muted') + '">' + state + '</td><td>' + escapeHtml(formatQuota(limit)) + '</td><td>' + escapeHtml(reset) + '</td><td class="right">' + escapeHtml(wait) + '</td><td>' + escapeHtml(limit.error_type || '') + '</td></tr>';
         }), withCacheKey(data.limits));
 
+        // Render today usage table
         const todayRows = ((usage.by_model_today || []).filter((row) => row.requests > 0));
         setInnerCached('todayModels', renderRows(todayRows, '<tr><td colspan="10" class="empty-state">Запросов сегодня нет</td></tr>', (m) =>
           '<tr><td>' + escapeHtml(m.model) + '</td><td class="right">' + fmtInt.format(m.requests) + '</td><td class="right ok">' + fmtInt.format(m.ok) + '</td><td class="right fail">' + fmtInt.format(m.fail) + '</td><td class="right">' + escapeHtml(tokenText(m)) + '</td><td class="right">' + escapeHtml(tokenPartText(m, 'prompt_tokens')) + '</td><td class="right">' + escapeHtml(tokenPartText(m, 'completion_tokens')) + '</td><td class="right warn">' + fmtInt.format(m.rate_limited || 0) + '</td><td class="right">' + fmtInt.format(m.latency_ms_avg) + '</td><td class="right">' + money.format(m.cost || 0) + '</td></tr>'
         ), withCacheKey(todayRows));
 
+        // Render daily usage table
         const dayRows = (usage.by_day || []).filter((row) => row.requests > 0);
         setInnerCached('dailyUsage', renderRows(dayRows, '<tr><td colspan="7" class="empty-state">Истории нет</td></tr>', (day) =>
           '<tr><td>' + escapeHtml(day.day) + '</td><td class="right">' + fmtInt.format(day.requests) + '</td><td class="right ok">' + fmtInt.format(day.ok) + '</td><td class="right fail">' + fmtInt.format(day.fail) + '</td><td class="right">' + escapeHtml(tokenText(day)) + '</td><td class="right warn">' + fmtInt.format(day.rate_limited || 0) + '</td><td class="right">' + money.format(day.cost || 0) + '</td></tr>'
         ), withCacheKey(dayRows));
 
+        // Render recent events
         setInnerCached('recent', renderRows(data.recent, '<tr><td colspan="8" class="empty-state">Запросов нет</td></tr>', (e) => {
           const statusClass = e.ok ? 'ok' : 'fail';
           const detail = e.ok ? e.finish_reason : e.error_type;
           return '<tr><td>' + new Date(e.ts).toLocaleTimeString('ru-RU') + '</td><td>' + escapeHtml(e.model) + '</td><td class="' + statusClass + '">' + escapeHtml(String(e.status)) + '</td><td class="right">' + fmtInt.format(e.latency_ms) + 'мс</td><td class="right">' + escapeHtml(tokenText(e)) + '</td><td class="right">' + escapeHtml(tokenPartText(e, 'prompt_tokens')) + '</td><td class="right">' + escapeHtml(tokenPartText(e, 'completion_tokens')) + '</td><td>' + escapeHtml(detail || '') + '</td></tr>';
         }), withCacheKey(data.recent));
  
+        // Update charts
         if (ts.length > 0 && hasCharts()) {
           const visibleTs = ts.slice(-60);
           updateActivityChart(visibleTs);
@@ -1264,6 +1847,7 @@ function renderDashboard() {
           updateCostChart(visibleTs);
         }
 
+        // Render model distribution donut
         const modelAgg = {};
         for (const row of todayRows) {
           if (!modelAgg[row.model]) modelAgg[row.model] = 0;
@@ -1281,6 +1865,7 @@ function renderDashboard() {
         const modelData = modelLabels.map((m) => modelAgg[m]);
         updateDonut('modelDonut', 'modelLegend', 'modelDonutTotal', modelLabels, modelData, modelLabels.map((_, i) => getChartColor(i)));
 
+        // Prompt vs Completion donut
         let totalPrompt = 0, totalCompletion = 0;
         if (today.requests) {
           totalPrompt = today.prompt_tokens || 0;
@@ -1290,6 +1875,7 @@ function renderDashboard() {
         }
         updateDonut('tokenDonut', 'tokenLegend', 'tokenDonutTotal', ['Prompt', 'Completion'], [totalPrompt, totalCompletion], ['#6366f1', '#10b981']);
 
+        // Success vs Error donut
         let totalOk = today.ok || 0, totalFail = today.fail || 0, totalRateLimited = today.rate_limited || 0;
         if (!today.requests) {
           for (const b of ts) { totalOk += b.ok || 0; totalFail += b.fail || 0; totalRateLimited += b.rate_limited || 0; }

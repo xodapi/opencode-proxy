@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { numberOrNull, positiveInteger, round, isOffValue, uniqueStrings } from './utils.js';
 
 const DEFAULT_USAGE_RETENTION_DAYS = 30;
 const DEFAULT_USAGE_READ_LIMIT_BYTES = 5 * 1024 * 1024;
@@ -379,11 +380,6 @@ function cleanString(value, maxLength) {
   return String(value || '').replace(/[\r\n\t]/g, ' ').slice(0, maxLength);
 }
 
-function positiveInteger(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
-}
-
 function nonNegativeInteger(value) {
   return Math.max(0, Math.round(numberOrFallback(value, 0)));
 }
@@ -396,26 +392,6 @@ function nonNegativeNumberOrNull(value) {
 function numberOrFallback(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
-}
-
-function numberOrNull(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function round(value, digits) {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
-}
-
-function uniqueStrings(values) {
-  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
-}
-
-function isOffValue(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'off' || normalized === 'false' || normalized === '0';
 }
 
 export {

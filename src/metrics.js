@@ -1,13 +1,8 @@
 import { summarizeUsageEvents } from './usage_store.js';
+import { numberOrNull, positiveInteger, round, uniqueStrings } from './utils.js';
 
 const DEFAULT_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_EVENTS = 2000;
-
-function numberOrNull(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
 
 function emptyAggregate(model) {
   return {
@@ -66,9 +61,9 @@ function parseResetHeader(value, now = Date.now()) {
   const trimmed = String(value).trim();
   const numeric = Number(trimmed);
   if (Number.isFinite(numeric) && numeric >= 0) {
-    const resetAtTs = numeric > 10_000_000_000
+    const resetAtTs = numeric > 1_000_000_000_000
       ? numeric
-      : numeric > 10_000_000
+      : numeric >= 1_000_000_000
         ? numeric * 1000
         : now + numeric * 1000;
     return {
@@ -92,14 +87,77 @@ function parseResetHeader(value, now = Date.now()) {
   return null;
 }
 
-function extractLimitFromHeaders(headers, status, now = Date.now()) {
+function extractResetFromErrorBody(bodyText, now = Date.now()) {
+  if (!bodyText || typeof bodyText !== 'string') return null;
+
+  // Pattern 1: duration formatted string like 1h23m45s or 45s or 5m after keywords
+  const durationMatch = bodyText.match(/(?:in|after|wait|seconds:|retry-after:)\s*(?:(?:(\d+)\s*h)(?:\s*(\d+)\s*m)?(?:\s*(\d+)\s*s)?|(?:\s*(\d+)\s*m)(?:\s*(\d+)\s*s)?|(?:\s*(\d+)\s*s\b))/i);
+  if (durationMatch) {
+    const hours = parseInt(durationMatch[1] || '0', 10);
+    const minutes = parseInt(durationMatch[2] || durationMatch[4] || '0', 10);
+    const seconds = parseInt(durationMatch[3] || durationMatch[5] || durationMatch[6] || '0', 10);
+    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    if (totalSeconds > 0) {
+      return {
+        retry_after_seconds: totalSeconds,
+        reset_at_ts: now + totalSeconds * 1000,
+        reset_at: new Date(now + totalSeconds * 1000).toISOString(),
+        source: 'error-body-duration',
+      };
+    }
+  }
+
+  // Pattern 2: simple word-based search, e.g., "45 seconds", "5 minutes", "1 hour"
+  const wordSecondsMatch = bodyText.match(/(?:(\d+)\s*(?:seconds|second|секунд|сек))/i);
+  if (wordSecondsMatch) {
+    const seconds = parseInt(wordSecondsMatch[1], 10);
+    return {
+      retry_after_seconds: seconds,
+      reset_at_ts: now + seconds * 1000,
+      reset_at: new Date(now + seconds * 1000).toISOString(),
+      source: 'error-body-words-seconds',
+    };
+  }
+
+  const wordMinutesMatch = bodyText.match(/(?:(\d+)\s*(?:minutes|minute|минут|мин))/i);
+  if (wordMinutesMatch) {
+    const minutes = parseInt(wordMinutesMatch[1], 10);
+    const seconds = minutes * 60;
+    return {
+      retry_after_seconds: seconds,
+      reset_at_ts: now + seconds * 1000,
+      reset_at: new Date(now + seconds * 1000).toISOString(),
+      source: 'error-body-words-minutes',
+    };
+  }
+
+  return null;
+}
+
+function extractLimitFromHeaders(headers, status, now = Date.now(), options = {}) {
+  const defaultRetryAfter = options.defaultRetryAfter ?? 60;
+  const responseBody = options.responseBody || '';
+
   const retryAfter = parseRetryAfter(readHeader(headers, ['retry-after']), now);
-  const reset = retryAfter || parseResetHeader(readHeader(headers, [
+  let reset = retryAfter || parseResetHeader(readHeader(headers, [
     'ratelimit-reset',
     'rate-limit-reset',
     'x-ratelimit-reset',
     'x-rate-limit-reset',
   ]), now);
+
+  if (!reset && status === 429) {
+    reset = extractResetFromErrorBody(responseBody, now);
+    if (!reset) {
+      reset = {
+        retry_after_seconds: defaultRetryAfter,
+        reset_at_ts: now + defaultRetryAfter * 1000,
+        reset_at: new Date(now + defaultRetryAfter * 1000).toISOString(),
+        source: 'default-429-fallback',
+      };
+    }
+  }
+
   const remaining = numberOrNull(readHeader(headers, [
     'ratelimit-remaining',
     'rate-limit-remaining',
@@ -128,12 +186,12 @@ const DEFAULT_MAX_TIMESERIES_POINTS = 1440;
 
 class ProxyMetrics {
   constructor(options = {}) {
-    this.maxEvents = Number.isFinite(options.maxEvents) ? options.maxEvents : DEFAULT_MAX_EVENTS;
-    this.maxTimeseriesPoints = Number.isFinite(options.maxTimeseriesPoints)
-      ? options.maxTimeseriesPoints
-      : DEFAULT_MAX_TIMESERIES_POINTS;
+    this.maxEvents = positiveInteger(options.maxEvents, DEFAULT_MAX_EVENTS);
+    this.maxTimeseriesPoints = positiveInteger(options.maxTimeseriesPoints, DEFAULT_MAX_TIMESERIES_POINTS);
     this.startedAt = Date.now();
-    this.events = [];
+    this.events = new Array(this.maxEvents);
+    this.eventsIndex = 0;
+    this.eventsCount = 0;
     this.timeseries = [];
     this.timeseriesByMinute = new Map();
     this.models = Array.isArray(options.models) ? uniqueStrings(options.models) : [];
@@ -167,15 +225,17 @@ class ProxyMetrics {
       limit_source: event.limit_source ? String(event.limit_source) : '',
       rate_limit_remaining: numberOrNull(event.rate_limit_remaining),
       rate_limit_limit: numberOrNull(event.rate_limit_limit),
+      is_probe: Boolean(event.is_probe),
     };
 
-    this.events.push(safeEvent);
-    if (this.events.length > this.maxEvents) {
-      this.events.splice(0, this.events.length - this.maxEvents);
-    }
-    this._updateTimeseries(safeEvent);
-    if (this.usageStore?.record) {
-      this.usageStore.record(safeEvent);
+    this.events[this.eventsIndex] = safeEvent;
+    this.eventsIndex = (this.eventsIndex + 1) % this.maxEvents;
+    if (this.eventsCount < this.maxEvents) this.eventsCount++;
+    if (!safeEvent.is_probe) {
+      this._updateTimeseries(safeEvent);
+      if (this.usageStore?.record) {
+        this.usageStore.record(safeEvent);
+      }
     }
   }
 
@@ -184,6 +244,17 @@ class ProxyMetrics {
       return this.usageStore.flush();
     }
     return true;
+  }
+
+  _getEvents() {
+    if (this.eventsCount === 0) return [];
+    if (this.eventsCount < this.maxEvents) {
+      return this.events.slice(0, this.eventsCount);
+    }
+    return [
+      ...this.events.slice(this.eventsIndex),
+      ...this.events.slice(0, this.eventsIndex),
+    ].filter(Boolean);
   }
 
   _updateTimeseries(event) {
@@ -248,27 +319,39 @@ class ProxyMetrics {
       ? options.windowMs
       : DEFAULT_WINDOW_MS;
     const since = now - windowMs;
-    const windowEvents = this.events.filter((event) => event.ts >= since);
-    const allSummary = aggregateEvents(this.events, Math.max(1, now - this.startedAt));
+    const events = this._getEvents();
+    const windowEvents = events.filter((event) => event.ts >= since);
+    const allSummary = aggregateEvents(events, Math.max(1, now - this.startedAt));
     const windowSummary = aggregateEvents(windowEvents, windowMs);
     const usageDays = Number.isFinite(options.usageDays) && options.usageDays > 0
       ? Math.floor(options.usageDays)
       : 7;
     const usage = this.usageStore?.summary
       ? this.usageStore.summary({ days: usageDays, models: this.models, now })
-      : summarizeUsageEvents(this.events, {
+      : summarizeUsageEvents(events, {
         days: usageDays,
         models: this.models,
         now,
         enabled: false,
       });
     const modelStatus = buildModelStatus({
-      events: this.events,
+      events,
       models: this.models,
       primaryModels: this.primaryModels,
       usage,
       now,
     });
+
+    const recentErrors = events
+      .filter((event) => !event.ok)
+      .slice(-10)
+      .reverse()
+      .map((event) => ({
+        ts: event.ts,
+        model: event.model,
+        status: event.status,
+        error_type: event.error_type || `HTTP ${event.status}`,
+      }));
 
     return {
       version: 1,
@@ -282,7 +365,7 @@ class ProxyMetrics {
         note: 'Промпты, ответы и ключи не сохраняются; учитываются только модель, статус, задержка, токены, cost и класс ошибки.',
       },
       window_ms: windowMs,
-      total_events_kept: this.events.length,
+      total_events_kept: this.eventsCount,
       summary: {
         all: allSummary,
         window: windowSummary,
@@ -303,10 +386,11 @@ class ProxyMetrics {
         rate_limited: bucket.rate_limited,
         by_model: bucket.by_model,
       })),
-      limits: currentLimits(this.events, now),
+      limits: currentLimits(events, now),
       model_status: modelStatus,
       usage,
-      recent: this.events.slice(-20).reverse(),
+      errors: recentErrors,
+      recent: events.slice(-20).reverse(),
     };
   }
 }
@@ -705,15 +789,6 @@ function tryParseJSON(text) {
   }
 }
 
-function round(value, digits) {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
-}
-
-function uniqueStrings(values) {
-  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
-}
-
 export {
   DEFAULT_MAX_EVENTS,
   DEFAULT_WINDOW_MS,
@@ -722,6 +797,7 @@ export {
   buildModelStatus,
   currentLimits,
   extractLimitFromHeaders,
+  extractResetFromErrorBody,
   extractUsageFromBody,
   extractUsageFromText,
   parseRetryAfter,

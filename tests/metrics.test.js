@@ -5,6 +5,7 @@ import {
   aggregateEvents,
   currentLimits,
   extractLimitFromHeaders,
+  extractResetFromErrorBody,
   extractUsageFromBody,
   extractUsageFromText,
   parseRetryAfter,
@@ -110,6 +111,15 @@ describe('ProxyMetrics', () => {
     const snapshot = metrics.snapshot();
     assert.equal(snapshot.total_events_kept, 2);
     assert.deepEqual(snapshot.recent.map((event) => event.model), ['c', 'b']);
+  });
+
+  it('falls back to default retention when maxEvents is invalid', () => {
+    const metrics = new ProxyMetrics({ maxEvents: 0 });
+    metrics.record({ model: 'a', ok: true });
+
+    const snapshot = metrics.snapshot();
+    assert.equal(snapshot.total_events_kept, 1);
+    assert.equal(snapshot.recent[0].model, 'a');
   });
 
   it('merges out-of-order events into existing minute buckets', () => {
@@ -228,5 +238,85 @@ describe('ProxyMetrics', () => {
     assert.equal(m2.state, 'limited');
     assert.ok(m2.reset_in_seconds <= 60);
     assert.equal(m2.today.rate_limited, 1);
+  });
+
+  it('parses reset timeout from error body text', () => {
+    const now = Date.parse('2026-06-23T12:00:00.000Z');
+
+    const res1 = extractResetFromErrorBody('Rate limit exceeded. Please try again in 45s.', now);
+    assert.equal(res1.retry_after_seconds, 45);
+    assert.equal(res1.reset_at, '2026-06-23T12:00:45.000Z');
+
+    const res2 = extractResetFromErrorBody('Please try again in 5 minutes.', now);
+    assert.equal(res2.retry_after_seconds, 300);
+    assert.equal(res2.reset_at, '2026-06-23T12:05:00.000Z');
+
+    const res3 = extractResetFromErrorBody('Wait 1h2m3s and try again', now);
+    assert.equal(res3.retry_after_seconds, 3723);
+    assert.equal(res3.reset_at, '2026-06-23T13:02:03.000Z');
+
+    const res4 = extractResetFromErrorBody('Rate limit exceeded. Please try again later.', now);
+    assert.equal(res4, null);
+  });
+
+  it('uses default retry after fallback and parses body in extractLimitFromHeaders', () => {
+    const now = Date.parse('2026-06-23T12:00:00.000Z');
+    const emptyHeaders = new Headers();
+
+    // 1. Fallback default
+    const limitDefault = extractLimitFromHeaders(emptyHeaders, 429, now, {
+      defaultRetryAfter: 99,
+    });
+    assert.equal(limitDefault.rate_limited, true);
+    assert.equal(limitDefault.retry_after_seconds, 99);
+    assert.equal(limitDefault.limit_source, 'default-429-fallback');
+
+    // 2. Parse from body text
+    const limitBody = extractLimitFromHeaders(emptyHeaders, 429, now, {
+      defaultRetryAfter: 60,
+      responseBody: 'Rate limit exceeded. Please try again in 12s.',
+    });
+    assert.equal(limitBody.rate_limited, true);
+    assert.equal(limitBody.retry_after_seconds, 12);
+    assert.equal(limitBody.limit_source, 'error-body-duration');
+  });
+
+  it('does not write probe events to timeseries or usageStore', () => {
+    let writtenToStore = false;
+    const fakeStore = {
+      record() { writtenToStore = true; }
+    };
+    const metrics = new ProxyMetrics({
+      maxEvents: 5,
+      usageStore: fakeStore,
+    });
+
+    // 1. Record regular request
+    metrics.record({ model: 'a', ok: true, is_probe: false });
+    assert.equal(writtenToStore, true);
+    assert.equal(metrics.timeseries[0].requests, 1);
+
+    // Reset store flag
+    writtenToStore = false;
+
+    // 2. Record probe request
+    metrics.record({ model: 'b', ok: true, is_probe: true });
+    assert.equal(writtenToStore, false);
+    assert.equal(metrics.timeseries[0].requests, 1);
+    assert.equal(metrics.eventsIndex, 2);
+  });
+
+  it('collects recent errors in snapshot', () => {
+    const metrics = new ProxyMetrics({ maxEvents: 5 });
+    metrics.record({ model: 'm1', ok: true });
+    metrics.record({ model: 'm2', ok: false, status: 429, error_type: 'Rate limit exceeded' });
+    metrics.record({ model: 'm3', ok: false, status: 502 });
+
+    const snapshot = metrics.snapshot();
+    assert.equal(snapshot.errors.length, 2);
+    assert.deepEqual(snapshot.errors, [
+      { ts: snapshot.errors[0].ts, model: 'm3', status: 502, error_type: 'HTTP 502' },
+      { ts: snapshot.errors[1].ts, model: 'm2', status: 429, error_type: 'Rate limit exceeded' },
+    ]);
   });
 });

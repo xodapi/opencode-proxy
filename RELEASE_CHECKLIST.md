@@ -14,7 +14,7 @@ Invoke-RestMethod http://127.0.0.1:3000/health
 .\build-release.cmd
 ```
 
-Архив в `dist\opencode-proxy-release.zip` должен содержать только README, quickstart, `.cmd`, `.ps1`, `src`, `scripts`, `tests`, `package.json` и примеры. В нем не должно быть `.exe`, `.dll`, `.msi`, `.env`, `.factory`, `node_modules` или платных API-ключей.
+Архив в `dist\opencode-proxy-release.zip` должен содержать только README, `AGENTS.md`, `ISSUES.md`, quickstart, `.cmd`, `.ps1`, `src`, `scripts`, `tests`, `package.json` и примеры. В нем не должно быть `.exe`, `.dll`, `.msi`, `.env`, `.factory`, `node_modules` или платных API-ключей.
 
 Для ручной очистки локальной истории статистики:
 

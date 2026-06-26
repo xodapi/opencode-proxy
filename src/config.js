@@ -21,6 +21,8 @@ const DEFAULT_METRICS_MAX_EVENTS = 2000;
 const DEFAULT_USAGE_RETENTION_DAYS = 30;
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
+const DEFAULT_RETRY_AFTER = 60;
+const DEFAULT_PROBE_INTERVAL = 30000;
 const ROUTING_STRATEGIES = new Set(['round-robin', 'random']);
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
@@ -44,7 +46,7 @@ function loadConfig(env = process.env) {
   const warnings = [];
 
   if (isExposedHost(host) && !managementToken) {
-    warnings.push('HOST exposes management endpoints; set MANAGEMENT_TOKEN to enable /dashboard, /metrics, /usage, /limits, and /export.');
+    warnings.push('HOST exposes management endpoints; set MANAGEMENT_TOKEN to enable /dashboard, /flow, /metrics, /diag, /usage, /limits, and /export.');
   }
 
   return {
@@ -64,6 +66,8 @@ function loadConfig(env = process.env) {
     managementAuthRequired: Boolean(managementToken) || isExposedHost(host),
     accessLog: !isOffValue(env.ACCESS_LOG),
     shutdownTimeoutMs: positiveInteger(env.SHUTDOWN_TIMEOUT_MS, DEFAULT_SHUTDOWN_TIMEOUT_MS),
+    defaultRetryAfter: positiveInteger(env.DEFAULT_RETRY_AFTER, DEFAULT_RETRY_AFTER),
+    probeInterval: env.PROBE_INTERVAL === '0' ? 0 : positiveInteger(env.PROBE_INTERVAL, DEFAULT_PROBE_INTERVAL),
     warnings,
   };
 }

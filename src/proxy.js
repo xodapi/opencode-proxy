@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { loadConfig } from './config.js';
 import { renderDashboard } from './dashboard.js';
 import { renderFlow } from './flow.js';
@@ -6,8 +7,12 @@ import { ProxyMetrics, extractLimitFromHeaders, extractUsageFromBody, extractUsa
 import { Router } from './router.js';
 import { UsageStore } from './usage_store.js';
 
+const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+const VERSION = PKG.version || '0.0.0';
+const APP_NAME = PKG.name || 'opencode-proxy';
+
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
-const MANAGEMENT_PATHS = new Set(['/dashboard', '/flow', '/metrics', '/usage', '/limits']);
+const MANAGEMENT_PATHS = new Set(['/dashboard', '/flow', '/metrics', '/diag', '/usage', '/limits']);
 
 const SAFE_UPSTREAM_HEADERS = [
   'retry-after',
@@ -68,21 +73,60 @@ function createProxy(customConfig) {
 
     if (req.method === 'GET' && url.pathname === '/dashboard') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderDashboard());
+      res.end(renderDashboard(VERSION));
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/flow') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderFlow());
+      res.end(renderFlow(VERSION));
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/metrics') {
       const windowMs = parseInt(url.searchParams.get('window') || '', 10);
       const usageDays = parseInt(url.searchParams.get('days') || '', 10);
+      const snap = metrics.snapshot({ windowMs, usageDays });
+      snap.routing = config.routing;
+      snap.app = APP_NAME;
+      snap.app_version = VERSION;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(metrics.snapshot({ windowMs, usageDays })));
+      res.end(JSON.stringify(snap));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/diag') {
+      const snap = metrics.snapshot({ usageDays: 1 });
+      snap.routing = config.routing;
+      snap.app = APP_NAME;
+      snap.app_version = VERSION;
+      const uptime = snap.uptime_seconds || 0;
+      const s = snap.summary?.window || {};
+      const primary = snap.model_status?.primary || [];
+      const diag = {
+        version: VERSION,
+        app: APP_NAME,
+        uptime_seconds: uptime,
+        uptime_human: uptime > 0 ? Math.floor(uptime / 3600) + 'ч ' + Math.floor((uptime % 3600) / 60) + 'м' : '—',
+        generated_at: snap.generated_at,
+        routing: config.routing,
+        models_count: config.models.length,
+        primary_models_count: primary.length,
+        primary_models: primary.map(m => ({ model: m.model, state: m.state || 'untested', limited: !!m.limited })),
+        window_5min: {
+          requests: s.requests || 0,
+          ok: s.ok || 0,
+          fail: s.fail || 0,
+          rate_limited: s.rate_limited || 0,
+          latency_ms_avg: s.latency_ms_avg || 0,
+          latency_ms_max: s.latency_ms_max || 0,
+          tokens_per_minute: s.tokens_per_minute || 0,
+        },
+        health: s.fail > s.ok ? 'error' : ((s.fail || 0) > (s.requests || 0) * 0.2 ? 'warn' : 'ok'),
+        errors: snap.errors || [],
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(diag, null, 2));
       return;
     }
 
@@ -215,7 +259,10 @@ function createProxy(customConfig) {
         ? extractUsageFromBody(parsedResponse)
         : extractUsageFromText(text);
       const usage = withEstimatedUsage(rawUsage, parsed, text, parsedResponse);
-      const limit = extractLimitFromHeaders(response.headers, response.status, Date.now());
+      const limit = extractLimitFromHeaders(response.headers, response.status, Date.now(), {
+        defaultRetryAfter: config.defaultRetryAfter,
+        responseBody: text,
+      });
       metrics.record({
         model: selectedModel,
         status: response.status,
@@ -258,6 +305,48 @@ function createProxy(customConfig) {
       res.end(JSON.stringify({ error: 'Upstream request failed' }));
     } finally {
       if (abortOnClose) req.off?.('close', abortOnClose);
+    }
+  }
+
+  const lastProbeTime = {};
+
+  if (config.probeInterval > 0) {
+    const intervalId = setInterval(() => {
+      const snap = metrics.snapshot();
+      const allModels = snap.model_status?.all || [];
+      for (const m of allModels) {
+        const lastSeen = m.last_seen_at ? Date.parse(m.last_seen_at) : 0;
+        const lastProbe = lastProbeTime[m.model] || 0;
+        const timeSinceLastProbe = Date.now() - lastProbe;
+
+        let needsProbe = false;
+        if (m.state === 'limited') {
+          const resetIn = m.reset_in_seconds || 0;
+          if (resetIn > 600) {
+            needsProbe = timeSinceLastProbe > 30 * 60 * 1000;
+          } else {
+            needsProbe = timeSinceLastProbe > config.probeInterval;
+          }
+        } else {
+          const isStale = m.state === 'error'
+            || m.state === 'retry'
+            || m.state === 'untested'
+            || (Date.now() - lastSeen > 5 * 60 * 1000);
+
+          if (isStale) {
+            needsProbe = timeSinceLastProbe > config.probeInterval;
+          }
+        }
+
+        if (needsProbe) {
+          lastProbeTime[m.model] = Date.now();
+          probeModel(m.model, config, metrics, logger).catch(() => {});
+        }
+      }
+    }, config.probeInterval);
+
+    if (intervalId && typeof intervalId.unref === 'function') {
+      intervalId.unref();
     }
   }
 
@@ -311,10 +400,13 @@ function securityHeadersFor(url) {
     headers['Cache-Control'] = 'no-store';
   }
 
-  if (url.pathname === '/dashboard') {
+  if (url.pathname === '/dashboard' || url.pathname === '/flow') {
+    const scriptSrc = url.pathname === '/dashboard'
+      ? "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net"
+      : "script-src 'self' 'unsafe-inline'";
     headers['Content-Security-Policy'] = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "connect-src 'self'",
       "img-src 'self' data:",
@@ -507,6 +599,55 @@ function csvCell(value) {
   const safeText = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   if (!/[",\r\n]/.test(safeText)) return safeText;
   return `"${safeText.replace(/"/g, '""')}"`;
+}
+
+async function probeModel(model, config, metrics, logger) {
+  const upstreamUrl = `${config.upstream}/chat/completions`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000); // 10s timeout for probe
+
+  try {
+    const response = await fetch(upstreamUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
+      }),
+    });
+    clearTimeout(timer);
+
+    const text = await response.text();
+    const parsedResponse = safeParseJSON(text);
+    const limit = extractLimitFromHeaders(response.headers, response.status, Date.now(), {
+      defaultRetryAfter: config.defaultRetryAfter,
+      responseBody: text,
+    });
+
+    metrics.record({
+      model,
+      status: response.status,
+      ok: response.ok,
+      latency_ms: 0,
+      is_probe: true,
+      error_type: response.ok ? '' : upstreamErrorType(parsedResponse, response.status),
+      ...limit,
+    });
+  } catch (error) {
+    clearTimeout(timer);
+    metrics.record({
+      model,
+      status: 502,
+      ok: false,
+      is_probe: true,
+      error_type: error.name === 'AbortError' ? 'timeout' : 'network',
+    });
+  }
 }
 
 export { createProxy, readRequestBody, usageExportCsv };

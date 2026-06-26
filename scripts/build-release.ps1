@@ -26,6 +26,8 @@ try {
     ".env.example",
     ".gitignore",
     "README.md",
+    "AGENTS.md",
+    "ISSUES.md",
     "QUICKSTART_RU.md",
     "RELEASE_CHECKLIST.md",
     "ROADMAP.md",

@@ -163,7 +163,22 @@ describe('Config', () => {
       headers: { authorization: 'Bearer secret' },
     }, allowed);
     assert.equal(allowed.statusCode, 200);
+    assert.equal(allowed.body.version, 1);
+    assert.equal(allowed.body.app_version, '1.0.0');
     assert.equal(allowed.body.summary.window.requests, 0);
+
+    const deniedDiag = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/diag', headers: {} }, deniedDiag);
+    assert.equal(deniedDiag.statusCode, 401);
+
+    const allowedDiag = makeResponse(true);
+    await proxyRequest({
+      method: 'GET',
+      url: '/diag',
+      headers: { authorization: 'Bearer secret' },
+    }, allowedDiag);
+    assert.equal(allowedDiag.statusCode, 200);
+    assert.equal(allowedDiag.body.app, 'opencode-proxy');
   });
 
   it('should close management endpoints on exposed host without token', async () => {
@@ -178,6 +193,10 @@ describe('Config', () => {
     const denied = makeResponse(true);
     await proxyRequest({ method: 'GET', url: '/dashboard', headers: {} }, denied);
     assert.equal(denied.statusCode, 403);
+
+    const diag = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/diag', headers: {} }, diag);
+    assert.equal(diag.statusCode, 403);
 
     const models = makeResponse(true);
     await proxyRequest({ method: 'GET', url: '/v1/models', headers: {} }, models);
@@ -261,10 +280,20 @@ describe('createProxy', () => {
     await proxyRequest({ method: 'GET', url: '/dashboard' }, dashboard);
     assert.equal(dashboard.statusCode, 200);
     assert.match(dashboard.body, /OpenCode Proxy Dashboard/);
+    assert.match(dashboard.headers['Content-Security-Policy'], /cdn\.jsdelivr\.net/);
+
+    const flow = makeResponse();
+    await proxyRequest({ method: 'GET', url: '/flow' }, flow);
+    assert.equal(flow.statusCode, 200);
+    assert.match(flow.body, /Request Flow/);
+    assert.match(flow.headers['Content-Security-Policy'], /frame-ancestors 'none'/);
+    assert.doesNotMatch(flow.headers['Content-Security-Policy'], /cdn\.jsdelivr\.net/);
 
     const metrics = makeResponse(true);
     await proxyRequest({ method: 'GET', url: '/metrics?window=60000' }, metrics);
     assert.equal(metrics.statusCode, 200);
+    assert.equal(metrics.body.version, 1);
+    assert.equal(metrics.body.app_version, '1.0.0');
     assert.equal(metrics.body.summary.window.requests, 0);
     assert.equal(metrics.body.privacy.stores_prompts, false);
 
