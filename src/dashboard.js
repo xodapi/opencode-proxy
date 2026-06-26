@@ -920,6 +920,10 @@ function renderDashboard(version) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span>Настройки</span>
         </button>
+        <button class="nav-item" id="tabBtnTools" data-tab="tools">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span>Утилиты</span>
+        </button>
         <a class="nav-item" href="/flow" target="_blank">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           <span>Потоки (Flow)</span>
@@ -1162,6 +1166,42 @@ function renderDashboard(version) {
         </div>
       </div>
 
+      <!-- Вкладка Утилит -->
+      <div class="tab-content" id="tabTools" style="display:none; flex-direction:column; gap:20px">
+        <div class="section">
+          <div class="settings-card">
+            <div style="font-weight:600; font-size:15px; margin-bottom:8px">Системные утилиты и диагностика</div>
+            <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px">
+              Запуск диагностических тестов и утилит автоматизации. Результаты выполнения будут отображены в реальном времени в терминале ниже.
+            </p>
+            <div class="tools-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-bottom:20px">
+              <button class="btn btn-primary tool-btn" data-script="doctor" type="button" style="justify-content:center; padding:12px; font-weight:600">
+                🔍 Диагностика (Doctor)
+              </button>
+              <button class="btn btn-primary tool-btn" data-script="model-health" type="button" style="justify-content:center; padding:12px; font-weight:600">
+                🩺 Здоровье моделей
+              </button>
+              <button class="btn btn-primary tool-btn" data-script="proxy-status" type="button" style="justify-content:center; padding:12px; font-weight:600">
+                📊 Статус прокси
+              </button>
+              <button class="btn btn-primary tool-btn" data-script="secret-scan" type="button" style="justify-content:center; padding:12px; font-weight:600">
+                🛡️ Проверка безопасности
+              </button>
+              <button class="btn btn-primary tool-btn" data-script="backup" type="button" style="justify-content:center; padding:12px; font-weight:600">
+                💾 Резервная копия
+              </button>
+            </div>
+            <div class="terminal-wrapper" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #0b0c10; font-family: monospace; color: #00ff66; padding: 16px; min-height: 300px; max-height: 500px; display:flex; flex-direction:column; gap:10px">
+              <div id="terminalHeader" style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); border-bottom:1px solid #1c1f2e; padding-bottom:8px; flex-shrink:0">
+                <span>Терминал вывода</span>
+                <button id="clearTerminal" style="background:none; border:none; color:var(--text-muted); cursor:pointer;" type="button">Очистить</button>
+              </div>
+              <pre id="terminalOutput" style="white-space: pre-wrap; font-size: 13px; line-height: 1.6; margin: 0; overflow-y: auto; flex-grow:1; text-align:left">Терминал готов к работе. Выберите утилиту для запуска.</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="privacy-note" id="privacy"></div>
     </main>
   </div>
@@ -1182,8 +1222,10 @@ function renderDashboard(version) {
     // Tab switcher
     const tabDashboard = $('tabDashboard');
     const tabSettings = $('tabSettings');
+    const tabTools = $('tabTools');
     const tabBtnDashboard = $('tabBtnDashboard');
     const tabBtnSettings = $('tabBtnSettings');
+    const tabBtnTools = $('tabBtnTools');
     const pageTitle = $('pageTitle');
     const pageSubtitle = $('pageSubtitle');
 
@@ -1191,23 +1233,37 @@ function renderDashboard(version) {
       if (tabId === 'dashboard') {
         tabDashboard.style.display = 'flex';
         tabSettings.style.display = 'none';
+        tabTools.style.display = 'none';
         tabBtnDashboard.classList.add('active');
         tabBtnSettings.classList.remove('active');
+        tabBtnTools.classList.remove('active');
         pageTitle.textContent = 'OpenCode Proxy';
         pageSubtitle.textContent = 'Мониторинг моделей, токенов и производительности';
       } else if (tabId === 'settings') {
         tabDashboard.style.display = 'none';
         tabSettings.style.display = 'flex';
+        tabTools.style.display = 'none';
         tabBtnDashboard.classList.remove('active');
         tabBtnSettings.classList.add('active');
+        tabBtnTools.classList.remove('active');
         pageTitle.textContent = 'Настройки';
         pageSubtitle.textContent = 'Выбор моделей для отображения на дашборде';
         renderSettingsCheckboxList();
+      } else if (tabId === 'tools') {
+        tabDashboard.style.display = 'none';
+        tabSettings.style.display = 'none';
+        tabTools.style.display = 'flex';
+        tabBtnDashboard.classList.remove('active');
+        tabBtnSettings.classList.remove('active');
+        tabBtnTools.classList.add('active');
+        pageTitle.textContent = 'Утилиты';
+        pageSubtitle.textContent = 'Запуск диагностических утилит и тестов';
       }
     }
 
     tabBtnDashboard.addEventListener('click', () => switchTab('dashboard'));
     tabBtnSettings.addEventListener('click', () => switchTab('settings'));
+    tabBtnTools.addEventListener('click', () => switchTab('tools'));
 
     // Observed Models Logic
     let allAvailableModels = [];
@@ -1748,21 +1804,34 @@ function renderDashboard(version) {
           }
         }
 
-        if (s.fail > s.ok) {
+        const rateLimited = s.rate_limited || 0;
+        const criticalFail = Math.max(0, (s.fail || 0) - rateLimited);
+        const criticalFailPct = s.requests > 0 ? Math.round(criticalFail / s.requests * 100) : 0;
+
+        if (criticalFail > s.ok) {
           healthBanner.style.display = 'flex';
           healthBanner.style.background = 'var(--bad-bg)';
           healthBanner.style.color = 'var(--bad)';
           healthBanner.innerHTML = '<div class="banner-summary">' +
-            '<span>⚠️ Критическая ошибка: ' + fmtInt.format(s.fail) + ' из ' + fmtInt.format(s.requests) + ' (' + failPct + '%)</span>' +
-            '<span style="color:var(--text-secondary);font-size:11px">latency ' + fmtInt.format(s.latency_ms_avg) + 'ms · ' + fmtInt.format(s.latency_ms_max) + 'ms max</span>' +
+            '<span>⚠️ Критическая ошибка: ' + fmtInt.format(criticalFail) + ' из ' + fmtInt.format(s.requests) + ' (' + criticalFailPct + '%)</span>' +
+            '<span style="color:var(--text-secondary);font-size:11px">latency ' + fmtInt.format(s.latency_ms_avg) + 'ms · ' + fmtInt.format(s.latency_ms_max) + 'ms max' + (rateLimited > 0 ? ' · ' + rateLimited + ' лимитов' : '') + '</span>' +
           '</div>' + errorsHtml;
-        } else if (failPct > 20) {
+        } else if (criticalFailPct > 20 || rateLimited > 0) {
           healthBanner.style.display = 'flex';
           healthBanner.style.background = 'var(--warn-bg)';
           healthBanner.style.color = 'var(--warn)';
+          let bannerText = '';
+          let subText = '';
+          if (criticalFail === 0 && rateLimited > 0) {
+            bannerText = '⚠️ Достигнуты лимиты запросов (429)';
+            subText = fmtInt.format(s.ok) + ' OK · ' + fmtInt.format(rateLimited) + ' лимитов · ' + fmtInt.format(s.latency_ms_avg) + 'ms avg';
+          } else {
+            bannerText = '⚠️ Ошибок: ' + criticalFailPct + '%';
+            subText = fmtInt.format(s.ok) + ' OK · ' + fmtInt.format(criticalFail) + ' сбоев' + (rateLimited > 0 ? ' · ' + rateLimited + ' лимитов' : '') + ' · ' + fmtInt.format(s.latency_ms_avg) + 'ms avg';
+          }
           healthBanner.innerHTML = '<div class="banner-summary">' +
-            '<span>⚠️ Ошибок: ' + failPct + '%</span>' +
-            '<span style="color:var(--text-secondary);font-size:11px">' + fmtInt.format(s.ok) + ' OK · ' + fmtInt.format(s.fail) + ' fail · ' + fmtInt.format(s.latency_ms_avg) + 'ms avg</span>' +
+            '<span>' + bannerText + '</span>' +
+            '<span style="color:var(--text-secondary);font-size:11px">' + subText + '</span>' +
           '</div>' + errorsHtml;
         } else {
           healthBanner.style.display = 'flex';
@@ -1920,6 +1989,49 @@ function renderDashboard(version) {
     } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
       document.documentElement.setAttribute('data-theme', 'light');
     }
+
+    // Script execution handlers
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const scriptName = btn.getAttribute('data-script');
+        const outputEl = $('terminalOutput');
+
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = '⌛ Выполняется...';
+        outputEl.textContent = '[system] Запуск скрипта: ' + scriptName + '...\\n';
+        outputEl.scrollTop = outputEl.scrollHeight;
+
+        try {
+          const res = await fetch('/api/run-script', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ script: scriptName })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            outputEl.textContent += '\\n[error] Ошибка сервера: ' + (errData.error || res.statusText) + '\\n';
+          } else {
+            const data = await res.json();
+            outputEl.textContent += '\\n[system] Выполнение завершено с кодом: ' + data.code + '\\n\\n';
+            outputEl.textContent += data.output;
+          }
+        } catch (err) {
+          outputEl.textContent += '\\n[error] Не удалось связаться с сервером: ' + err.message + '\\n';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
+          outputEl.scrollTop = outputEl.scrollHeight;
+        }
+      });
+    });
+
+    $('clearTerminal').addEventListener('click', () => {
+      $('terminalOutput').textContent = 'Терминал очищен.';
+    });
 
     initCharts();
     refresh();

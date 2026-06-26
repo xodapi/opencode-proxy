@@ -7,6 +7,9 @@ import { Router } from '../src/router.js';
 import { loadConfig, DEFAULT_MODELS } from '../src/config.js';
 import { createProxy } from '../src/proxy.js';
 
+const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+const VERSION = PKG.version || '0.0.0';
+
 describe('Router', () => {
   let router;
 
@@ -164,7 +167,7 @@ describe('Config', () => {
     }, allowed);
     assert.equal(allowed.statusCode, 200);
     assert.equal(allowed.body.version, 1);
-    assert.equal(allowed.body.app_version, '1.0.0');
+    assert.equal(allowed.body.app_version, VERSION);
     assert.equal(allowed.body.summary.window.requests, 0);
 
     const deniedDiag = makeResponse(true);
@@ -293,7 +296,7 @@ describe('createProxy', () => {
     await proxyRequest({ method: 'GET', url: '/metrics?window=60000' }, metrics);
     assert.equal(metrics.statusCode, 200);
     assert.equal(metrics.body.version, 1);
-    assert.equal(metrics.body.app_version, '1.0.0');
+    assert.equal(metrics.body.app_version, VERSION);
     assert.equal(metrics.body.summary.window.requests, 0);
     assert.equal(metrics.body.privacy.stores_prompts, false);
 
@@ -583,6 +586,69 @@ describe('createProxy', () => {
       globalThis.fetch = originalFetch;
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('should exclude 429 rate limit errors from critical health state in /diag', async () => {
+    const { proxyRequest, metrics } = createProxy({
+      apiKey: 'key',
+      models: ['m1'],
+      upstream: 'https://test.com/v1',
+    });
+
+    metrics.record({
+      model: 'm1',
+      status: 502,
+      ok: false,
+      error_type: 'bad_gateway',
+    });
+
+    const diag1 = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/diag' }, diag1);
+    assert.equal(diag1.statusCode, 200);
+    assert.equal(diag1.body.health, 'error');
+
+    for (let i = 0; i < 5; i++) {
+      metrics.record({
+        model: 'm1',
+        status: 200,
+        ok: true,
+      });
+    }
+
+    const diag2 = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/diag' }, diag2);
+    assert.equal(diag2.body.health, 'ok');
+
+    metrics.record({
+      model: 'm1',
+      status: 429,
+      ok: false,
+      rate_limited: true,
+      error_type: 'rate_limited',
+    });
+
+    const diag3 = makeResponse(true);
+    await proxyRequest({ method: 'GET', url: '/diag' }, diag3);
+    assert.equal(diag3.body.health, 'ok');
+  });
+
+  it('should handle /api/run-script for allowed scripts', async () => {
+    const { proxyRequest } = createProxy({
+      apiKey: 'key',
+      models: ['m1'],
+      upstream: 'https://test.com/v1',
+    });
+
+    const badRes = makeResponse(true);
+    await proxyRequest(makeJSONRequest('/api/run-script', { script: 'unknown-script' }), badRes);
+    assert.equal(badRes.statusCode, 400);
+    assert.equal(badRes.body.error, 'Script not allowed or unknown');
+
+    const goodRes = makeResponse(true);
+    await proxyRequest(makeJSONRequest('/api/run-script', { script: 'secret-scan' }), goodRes);
+    assert.equal(goodRes.statusCode, 200);
+    assert.equal(goodRes.body.code, 0);
+    assert.ok(typeof goodRes.body.output === 'string');
   });
 });
 

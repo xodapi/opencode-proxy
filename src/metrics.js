@@ -10,6 +10,7 @@ function emptyAggregate(model) {
     requests: 0,
     ok: 0,
     fail: 0,
+    rate_limited: 0,
     total_tokens: 0,
     prompt_tokens: 0,
     completion_tokens: 0,
@@ -547,6 +548,7 @@ function aggregateEvents(events, durationMs) {
     requests: events.length,
     ok: 0,
     fail: 0,
+    rate_limited: 0,
     total_tokens: 0,
     prompt_tokens: 0,
     completion_tokens: 0,
@@ -572,6 +574,11 @@ function aggregateEvents(events, durationMs) {
     } else {
       summary.fail++;
       modelAggregate.fail++;
+    }
+
+    if (event.rate_limited) {
+      summary.rate_limited++;
+      modelAggregate.rate_limited++;
     }
 
     summary.total_tokens += event.total_tokens || 0;

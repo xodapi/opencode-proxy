@@ -1,5 +1,8 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { fork } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { loadConfig } from './config.js';
 import { renderDashboard } from './dashboard.js';
 import { renderFlow } from './flow.js';
@@ -12,7 +15,7 @@ const VERSION = PKG.version || '0.0.0';
 const APP_NAME = PKG.name || 'opencode-proxy';
 
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
-const MANAGEMENT_PATHS = new Set(['/dashboard', '/flow', '/metrics', '/diag', '/usage', '/limits']);
+const MANAGEMENT_PATHS = new Set(['/dashboard', '/flow', '/metrics', '/diag', '/usage', '/limits', '/api/run-script']);
 
 const SAFE_UPSTREAM_HEADERS = [
   'retry-after',
@@ -46,6 +49,23 @@ function createProxy(customConfig) {
     usageStore,
   });
   const logger = config.logger || console;
+
+  const originalRecord = metrics.record.bind(metrics);
+  const consecutiveErrors = {};
+
+  metrics.record = function (event) {
+    const model = event.model;
+    if (model) {
+      if (event.ok) {
+        consecutiveErrors[model] = 0;
+      } else {
+        if (event.status !== 429 && !event.rate_limited) {
+          consecutiveErrors[model] = (consecutiveErrors[model] || 0) + 1;
+        }
+      }
+    }
+    return originalRecord(event);
+  };
 
   async function proxyRequest(req, res) {
     const requestStartedAt = Date.now();
@@ -100,35 +120,37 @@ function createProxy(customConfig) {
       snap.routing = config.routing;
       snap.app = APP_NAME;
       snap.app_version = VERSION;
-      const uptime = snap.uptime_seconds || 0;
-      const s = snap.summary?.window || {};
-      const primary = snap.model_status?.primary || [];
-      const diag = {
-        version: VERSION,
-        app: APP_NAME,
-        uptime_seconds: uptime,
-        uptime_human: uptime > 0 ? Math.floor(uptime / 3600) + 'ч ' + Math.floor((uptime % 3600) / 60) + 'м' : '—',
-        generated_at: snap.generated_at,
-        routing: config.routing,
-        models_count: config.models.length,
-        primary_models_count: primary.length,
-        primary_models: primary.map(m => ({ model: m.model, state: m.state || 'untested', limited: !!m.limited })),
-        window_5min: {
-          requests: s.requests || 0,
-          ok: s.ok || 0,
-          fail: s.fail || 0,
-          rate_limited: s.rate_limited || 0,
-          latency_ms_avg: s.latency_ms_avg || 0,
-          latency_ms_max: s.latency_ms_max || 0,
-          tokens_per_minute: s.tokens_per_minute || 0,
-        },
-        health: s.fail > s.ok ? 'error' : ((s.fail || 0) > (s.requests || 0) * 0.2 ? 'warn' : 'ok'),
-        errors: snap.errors || [],
-      };
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(diag, null, 2));
-      return;
-    }
+        const uptime = snap.uptime_seconds || 0;
+        const s = snap.summary?.window || {};
+        const primary = snap.model_status?.primary || [];
+        const criticalFail = Math.max(0, (s.fail || 0) - (s.rate_limited || 0));
+        const healthState = criticalFail > (s.ok || 0) ? 'error' : (criticalFail > (s.requests || 0) * 0.2 ? 'warn' : 'ok');
+        const diag = {
+          version: VERSION,
+          app: APP_NAME,
+          uptime_seconds: uptime,
+          uptime_human: uptime > 0 ? Math.floor(uptime / 3600) + 'ч ' + Math.floor((uptime % 3600) / 60) + 'м' : '—',
+          generated_at: snap.generated_at,
+          routing: config.routing,
+          models_count: config.models.length,
+          primary_models_count: primary.length,
+          primary_models: primary.map(m => ({ model: m.model, state: m.state || 'untested', limited: !!m.limited })),
+          window_5min: {
+            requests: s.requests || 0,
+            ok: s.ok || 0,
+            fail: s.fail || 0,
+            rate_limited: s.rate_limited || 0,
+            latency_ms_avg: s.latency_ms_avg || 0,
+            latency_ms_max: s.latency_ms_max || 0,
+            tokens_per_minute: s.tokens_per_minute || 0,
+          },
+          health: healthState,
+          errors: snap.errors || [],
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(diag, null, 2));
+        return;
+      }
 
     if (req.method === 'GET' && url.pathname === '/usage') {
       const usageDays = parseInt(url.searchParams.get('days') || '', 10);
@@ -190,6 +212,64 @@ function createProxy(customConfig) {
           owned_by: 'opencode-zen',
         })),
       }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/run-script') {
+      let body;
+      try {
+        body = await readRequestBody(req, maxBodyBytes);
+      } catch (error) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to read request body' }));
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const allowedScripts = ['doctor', 'doctor-factory', 'model-health', 'proxy-status', 'secret-scan', 'backup'];
+      const scriptName = parsed.script;
+
+      if (!allowedScripts.includes(scriptName)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Script not allowed or unknown' }));
+        return;
+      }
+
+      let mjsName = '';
+      let scriptArgs = [];
+      if (scriptName === 'doctor') {
+        mjsName = 'doctor.mjs';
+      } else if (scriptName === 'doctor-factory') {
+        mjsName = 'doctor-factory.mjs';
+      } else if (scriptName === 'model-health') {
+        mjsName = 'model-health.mjs';
+        scriptArgs = ['--compact'];
+      } else if (scriptName === 'proxy-status') {
+        mjsName = 'proxy-status.mjs';
+        scriptArgs = ['--compact'];
+      } else if (scriptName === 'secret-scan') {
+        mjsName = 'secret-scan.mjs';
+      } else if (scriptName === 'backup') {
+        mjsName = 'factory-settings-backup.mjs';
+        scriptArgs = ['backup'];
+      }
+
+      try {
+        const result = await runForkedScript(mjsName, scriptArgs);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ code: result.code, output: result.output }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal execution error: ' + err.message }));
+      }
       return;
     }
 
@@ -310,6 +390,22 @@ function createProxy(customConfig) {
 
   const lastProbeTime = {};
 
+  function getBackoffInterval(consecutiveCount, defaultInterval) {
+    if (!consecutiveCount || consecutiveCount <= 0) {
+      return defaultInterval;
+    }
+    switch (consecutiveCount) {
+      case 1:
+        return 20 * 1000;      // 20 секунд
+      case 2:
+        return 2 * 60 * 1000;  // 2 минуты
+      case 3:
+        return 10 * 60 * 1000; // 10 минут
+      default:
+        return 30 * 60 * 1000; // 30 минут
+    }
+  }
+
   if (config.probeInterval > 0) {
     const intervalId = setInterval(() => {
       const snap = metrics.snapshot();
@@ -334,7 +430,13 @@ function createProxy(customConfig) {
             || (Date.now() - lastSeen > 5 * 60 * 1000);
 
           if (isStale) {
-            needsProbe = timeSinceLastProbe > config.probeInterval;
+            if (m.state === 'error') {
+              const errorsCount = consecutiveErrors[m.model] || 1;
+              const backoffInterval = getBackoffInterval(errorsCount, config.probeInterval);
+              needsProbe = timeSinceLastProbe > backoffInterval;
+            } else {
+              needsProbe = timeSinceLastProbe > config.probeInterval;
+            }
           }
         }
 
@@ -343,7 +445,7 @@ function createProxy(customConfig) {
           probeModel(m.model, config, metrics, logger).catch(() => {});
         }
       }
-    }, config.probeInterval);
+    }, Math.min(10000, config.probeInterval));
 
     if (intervalId && typeof intervalId.unref === 'function') {
       intervalId.unref();
@@ -648,6 +750,36 @@ async function probeModel(model, config, metrics, logger) {
       error_type: error.name === 'AbortError' ? 'timeout' : 'network',
     });
   }
+}
+function runForkedScript(scriptName, args = []) {
+  return new Promise((resolve) => {
+    const dirname = path.dirname(fileURLToPath(import.meta.url));
+    const scriptPath = path.resolve(dirname, '..', 'scripts', scriptName);
+
+    const child = fork(scriptPath, args, {
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        CI: 'true',
+      }
+    });
+
+    let output = '';
+    child.stdout?.on('data', (data) => {
+      output += data.toString();
+    });
+    child.stderr?.on('data', (data) => {
+      output += data.toString();
+    });
+
+    child.on('close', (code) => {
+      resolve({ code: code ?? 0, output });
+    });
+
+    child.on('error', (err) => {
+      resolve({ code: -1, output: output + '\n[error] ' + err.message });
+    });
+  });
 }
 
 export { createProxy, readRequestBody, usageExportCsv };
